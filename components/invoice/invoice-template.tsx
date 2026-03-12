@@ -11,7 +11,7 @@ export function InvoiceTemplate({ order }: InvoiceTemplateProps) {
       <div className="mb-4 flex flex-col items-center justify-center text-center">
         <img src="/img/logo.png" alt="Logo" className="mb-2 h-14 w-auto contrast-125 grayscale" />
         <h1 className="text-xl font-bold">{order.unit_id === 2 ? 'AXL Resto' : 'AXL Coffee'}</h1>
-        <p className="text-xs">Jl. Adisucipto, Colomadu</p>
+        <p className="text-xs">Jl. Adisucipto, Gang Bougenville, Gajahan, Colomadu</p>
       </div>
 
       <div className="mb-2 border-b border-dashed border-black pb-2 text-xs">
