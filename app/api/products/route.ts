@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
+
+const UPLOAD_DIR = join(process.cwd(), 'public', 'products')
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -38,22 +43,43 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const { name, price, cogs, category_id, unit_id, image, variants } = body
+    const formData = await req.formData()
+    const name = formData.get('name') as string
+    const price = formData.get('price') as string
+    const cogs = formData.get('cogs') as string
+    const category_id = formData.get('category_id') as string
+    const unit_id = formData.get('unit_id') as string
+    const file = formData.get('image') as File | null
 
     if (!name || !price || !unit_id) {
       return NextResponse.json({ error: 'name, price, and unit_id are required' }, { status: 400 })
+    }
+
+    let imagePath = null
+
+    if (file) {
+      if (!existsSync(UPLOAD_DIR)) {
+        await mkdir(UPLOAD_DIR, { recursive: true })
+      }
+
+      const buffer = await file.arrayBuffer()
+      const filename = `${Date.now()}-${file.name}`
+      const filepath = join(UPLOAD_DIR, filename)
+      
+      await writeFile(filepath, Buffer.from(buffer))
+      imagePath = `/products/${filename}`
     }
 
     const pool = await getDb()
     const res = await pool.query(
       `INSERT INTO products (name, price, cogs, category_id, unit_id, image, variants)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, price, cogs || 0, category_id || null, unit_id, image || null, variants ? JSON.stringify(variants) : null],
+      [name, parseInt(price), parseInt(cogs) || 0, category_id ? parseInt(category_id) : null, parseInt(unit_id), imagePath, null],
     )
 
     return NextResponse.json(res.rows[0], { status: 201 })
   } catch (error: any) {
+    console.error('Upload error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

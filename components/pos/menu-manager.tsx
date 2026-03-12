@@ -59,7 +59,8 @@ export function MenuManager({ unitId }: MenuManagerProps) {
     price: '',
     cogs: '',
     category_id: '' as string,
-    image: '',
+    image: null as File | null,
+    imagePreview: '',
   })
 
   const fetchProducts = () => {
@@ -97,37 +98,38 @@ export function MenuManager({ unitId }: MenuManagerProps) {
         price: product.price.toString(),
         cogs: product.cogs.toString(),
         category_id: product.category_id?.toString() || '',
-        image: product.image || '',
+        image: null,
+        imagePreview: product.image || '',
       })
     } else {
       setEditingProduct(null)
-      setProductForm({ name: '', price: '', cogs: '', category_id: '', image: '' })
+      setProductForm({ name: '', price: '', cogs: '', category_id: '', image: null, imagePreview: '' })
     }
     setShowProductModal(true)
   }
 
   const saveProduct = async () => {
-    const body = {
-      name: productForm.name,
-      price: parseInt(productForm.price),
-      cogs: parseInt(productForm.cogs) || 0,
-      category_id: productForm.category_id ? parseInt(productForm.category_id) : null,
-      unit_id: unitId,
-      image: productForm.image || null,
+    const formData = new FormData()
+    formData.append('name', productForm.name)
+    formData.append('price', productForm.price)
+    formData.append('cogs', productForm.cogs)
+    formData.append('category_id', productForm.category_id)
+    formData.append('unit_id', unitId.toString())
+    
+    if (productForm.image) {
+      formData.append('image', productForm.image)
     }
 
     try {
       if (editingProduct) {
         await fetch(`/api/products/${editingProduct.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: formData,
         })
       } else {
         await fetch('/api/products', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: formData,
         })
       }
       setShowProductModal(false)
@@ -408,13 +410,37 @@ export function MenuManager({ unitId }: MenuManagerProps) {
                 </select>
               </div>
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Image URL</label>
-                <Input
-                  value={productForm.image}
-                  onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
-                  placeholder="https://..."
-                  className="rounded-xl"
-                />
+                <label className="text-foreground mb-1 block text-sm font-medium">Product Image</label>
+                <div className="flex flex-col gap-3">
+                  {productForm.imagePreview && (
+                    <div className="bg-muted relative aspect-square overflow-hidden rounded-xl">
+                      <img 
+                        src={productForm.imagePreview} 
+                        alt="Preview" 
+                        className="h-full w-full object-cover" 
+                      />
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onloadend = () => {
+                          setProductForm({
+                            ...productForm,
+                            image: file,
+                            imagePreview: reader.result as string,
+                          })
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                    className="border-input bg-background w-full cursor-pointer rounded-xl border px-3 py-2 text-sm file:mr-4 file:border-0 file:bg-primary/10 file:px-4 file:py-1.5 file:text-sm file:font-medium"
+                  />
+                </div>
               </div>
               <Button
                 className="w-full rounded-xl"
