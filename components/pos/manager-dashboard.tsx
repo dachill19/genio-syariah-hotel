@@ -93,6 +93,19 @@ export const getOrderTypeBadgeConfig = (type: string) => {
   }
 }
 
+const getPaymentStatusClass = (status: string) => {
+  switch (status) {
+    case 'PAID':
+      return 'bg-emerald-100 text-emerald-700'
+    case 'CANCELLED':
+      return 'bg-red-100 text-red-700'
+    case 'UNPAID':
+      return 'bg-amber-100 text-amber-700'
+    default:
+      return 'bg-muted text-muted-foreground'
+  }
+}
+
 const PAYMENT_ICON: Record<string, any> = {
   CASH: Banknote,
   QRIS: QrCode,
@@ -485,6 +498,7 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
                       <th className="px-5 py-3 font-semibold tracking-wider">Invoice</th>
                       <th className="px-5 py-3 font-semibold tracking-wider">Type</th>
                       <th className="px-5 py-3 font-semibold tracking-wider">Payment</th>
+                      <th className="px-5 py-3 font-semibold tracking-wider">Status</th>
                       <th className="px-5 py-3 font-semibold tracking-wider">Cashier</th>
                       <th className="px-5 py-3 text-right font-semibold tracking-wider">Total</th>
                       <th className="px-5 py-3 text-center font-semibold tracking-wider">Action</th>
@@ -493,7 +507,7 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
                   <tbody className="divide-border divide-y">
                     {data?.recentTransactions?.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-muted-foreground px-5 py-8 text-center">
+                        <td colSpan={8} className="text-muted-foreground px-5 py-8 text-center">
                           No recent transactions found
                         </td>
                       </tr>
@@ -537,6 +551,16 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
                               >
                                 <PaymentIcon className="h-3 w-3" />
                                 {tx.payment_method}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3">
+                              <span
+                                className={cn(
+                                  'inline-flex rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase',
+                                  getPaymentStatusClass(tx.payment_status || ''),
+                                )}
+                              >
+                                {tx.payment_status || '-'}
                               </span>
                             </td>
                           <td className="text-muted-foreground px-5 py-3 text-[13px] font-medium">

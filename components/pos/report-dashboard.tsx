@@ -55,6 +55,8 @@ const getPaymentStatusStyle = (status: string) => {
   switch (status) {
     case 'PAID':
       return 'bg-emerald-100 text-emerald-700'
+    case 'CANCELLED':
+      return 'bg-red-100 text-red-700'
     case 'UNPAID':
       return 'bg-amber-100 text-amber-700'
     case 'REFUNDED':
@@ -210,7 +212,7 @@ export function ReportDashboard({ unitId }: ReportPageProps) {
       {Object.keys(paymentBreakdown).length > 0 && (
         <div className="mb-6 grid grid-cols-3 gap-4">
           {Object.entries(paymentBreakdown)
-            .filter(([method]) => method !== 'PENDING')
+            .filter(([method]) => method !== 'PENDING' && method !== 'CANCELLED')
             .map(([method, data]) => {
               const config = getPaymentBadgeConfig(method)
               const PaymentIcon = config.icon

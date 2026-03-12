@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       ) sub ON o.id = sub.order_id
       WHERE DATE(o.created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND o.unit_id = $3
-        AND o.payment_status != 'VOID'
+        AND o.payment_status = 'PAID'
     `
 
     const dailySalesQuery = `
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
       FROM orders
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
-        AND payment_status != 'VOID'
+        AND payment_status = 'PAID'
       GROUP BY DATE(created_at AT TIME ZONE '${TZ}')
       ORDER BY date ASC
     `
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       JOIN orders o ON oi.order_id = o.id
       WHERE DATE(o.created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND o.unit_id = $3
-        AND o.payment_status != 'VOID'
+        AND o.payment_status = 'PAID'
       GROUP BY oi.name
       ORDER BY total_qty DESC
       LIMIT 10
@@ -66,7 +66,7 @@ export async function GET(req: Request) {
       FROM orders
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
-        AND payment_status != 'VOID'
+        AND payment_status = 'PAID'
       GROUP BY payment_method
     `
 
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
       FROM orders
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
-        AND payment_status != 'VOID'
+        AND payment_status = 'PAID'
       GROUP BY order_type
     `
 
@@ -86,6 +86,7 @@ export async function GET(req: Request) {
       FROM orders
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
+        AND payment_status IN ('PAID', 'CANCELLED')
       ORDER BY created_at DESC
       LIMIT 10
     `

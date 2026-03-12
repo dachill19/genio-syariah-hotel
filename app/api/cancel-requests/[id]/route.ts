@@ -39,7 +39,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // If approved, cancel the order
   if (action === 'APPROVE') {
     await db.query(
-      `UPDATE orders SET payment_status = 'CANCELLED' WHERE id = $1`,
+      `UPDATE orders
+       SET payment_status = 'CANCELLED',
+           payment_method = 'CANCELLED'
+       WHERE id = $1`,
       [cancelRequest.order_id],
     )
   }

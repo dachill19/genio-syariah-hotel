@@ -86,11 +86,13 @@ export async function POST(req: Request) {
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const validUserId = user_id && uuidRegex.test(user_id) ? user_id : null
+    let existingUserId: string | null = null
 
     let cashier_name = 'System'
     if (validUserId) {
       const userRes = await pool.query('SELECT username FROM users WHERE id = $1', [validUserId])
       if (userRes.rows.length > 0) {
+        existingUserId = validUserId
         cashier_name = userRes.rows[0].username
       }
     }
@@ -101,6 +103,7 @@ export async function POST(req: Request) {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const randomStr = Math.floor(1000 + Math.random() * 9000)
     const invoice_number = `INV-${unitType}-${dateStr}-${randomStr}`
+    const finalPaymentStatus = body.payment_status || (payment_method === 'PENDING' ? 'UNPAID' : 'PAID')
 
     const client = await pool.connect()
 
@@ -122,13 +125,13 @@ export async function POST(req: Request) {
         tax_amount || 0,
         grand_total,
         payment_method,
-        body.payment_status || 'PAID',
+        finalPaymentStatus,
         'NEW',
         table_number || '',
         customer_name || '',
         order_type || 'Dine in',
         unit_id || 1,
-        validUserId,
+        existingUserId,
         cashier_name,
       ])
 
@@ -160,8 +163,8 @@ export async function POST(req: Request) {
       }
 
       // AUTO-JOURNALING ENGINE (PSAK 101 Syariah)
-      // Execute only if payment status is PAID (which is the default if not provided)
-      const isPaid = !body.payment_status || body.payment_status === 'PAID'
+      // Execute only when the order has actually been paid.
+      const isPaid = finalPaymentStatus === 'PAID'
 
       if (isPaid) {
         let kasAccount = '1101' // Default: Kas Tunai

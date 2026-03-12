@@ -17,8 +17,9 @@ export async function GET(req: Request) {
     const now = new Date()
     const today = new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-    // We strictly filter by date = today (local), matching unit_id, matching cashier_name, and exclude VOID
-    const whereClause = `WHERE DATE(orders.created_at AT TIME ZONE 'Asia/Jakarta') = $1 AND orders.unit_id = $2 AND orders.cashier_name = $3 AND orders.payment_status != 'VOID'`
+    const baseWhere = `WHERE DATE(orders.created_at AT TIME ZONE 'Asia/Jakarta') = $1 AND orders.unit_id = $2 AND orders.cashier_name = $3`
+    const transactionWhereClause = `${baseWhere} AND orders.payment_status IN ('PAID', 'CANCELLED')`
+    const summaryWhereClause = `${baseWhere} AND orders.payment_status = 'PAID'`
     const params = [today, unitId, cashierName]
 
     const transactionsQuery = `
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
              COALESCE(SUM(oi.qty), 0) as item_count
       FROM orders 
       LEFT JOIN orders_items oi ON orders.id = oi.order_id
-      ${whereClause}
+      ${transactionWhereClause}
       GROUP BY orders.id
       ORDER BY orders.created_at DESC
     `
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
          (SELECT SUM(qty) FROM orders_items WHERE order_id = orders.id)
        ), 0) as total_items_sold
       FROM orders
-      ${whereClause}
+      ${summaryWhereClause}
     `
 
     const [transactionsRes, summaryRes] = await Promise.all([
