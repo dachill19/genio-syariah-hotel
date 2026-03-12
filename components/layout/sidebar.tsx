@@ -5,13 +5,14 @@ import { useState, useRef, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Coffee,
-  ShoppingCart,
   FileText,
-  Settings,
   User as UserIcon,
   LogOut,
   Utensils,
   ClipboardList,
+  LayoutDashboard,
+  UtensilsCrossed,
+  History as HistoryIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -42,49 +43,90 @@ export function Sidebar() {
     }
   }, [])
 
-  const isResto = user?.unit_id === 2
+  const isCashier = user?.role === 'CASHIER'
+  const isManager = user?.role === 'MANAGER'
   const isCafe = user?.unit_id === 1
-  const isAdminOrManager = user?.role === 'ADMIN' || user?.role === 'MANAGER'
+  const isResto = user?.unit_id === 2
 
   const links = [
-    // CAFE
+    // CASHIER — Cafe
     {
       href: '/pos/cafe',
       icon: Coffee,
       label: 'Cafe POS',
-      hidden: isResto && !isAdminOrManager,
+      hidden: !(isCashier && isCafe),
     },
     {
       href: '/pos/cafe/orders',
       icon: ClipboardList,
       label: 'Cafe Orders',
-      hidden: isResto && !isAdminOrManager,
+      hidden: !(isCashier && isCafe),
     },
     {
       href: '/pos/cafe/report',
       icon: FileText,
       label: 'Cafe Report',
-      hidden: isResto && !isAdminOrManager,
+      hidden: !(isCashier && isCafe),
     },
 
-    // RESTO
+    // CASHIER — Resto
     {
       href: '/pos/restaurant',
       icon: Utensils,
       label: 'Resto POS',
-      hidden: isCafe && !isAdminOrManager,
+      hidden: !(isCashier && isResto),
     },
     {
       href: '/pos/restaurant/orders',
       icon: ClipboardList,
       label: 'Resto Orders',
-      hidden: isCafe && !isAdminOrManager,
+      hidden: !(isCashier && isResto),
     },
     {
       href: '/pos/restaurant/report',
       icon: FileText,
       label: 'Resto Report',
-      hidden: isCafe && !isAdminOrManager,
+      hidden: !(isCashier && isResto),
+    },
+
+    // MANAGER — Cafe
+    {
+      href: '/pos/cafe/manager',
+      icon: LayoutDashboard,
+      label: 'Cafe Dashboard',
+      hidden: !(isManager && isCafe),
+    },
+    {
+      href: '/pos/cafe/manager/history',
+      icon: HistoryIcon,
+      label: 'Cafe History',
+      hidden: !(isManager && isCafe),
+    },
+    {
+      href: '/pos/cafe/manager/menu',
+      icon: UtensilsCrossed,
+      label: 'Cafe Menu',
+      hidden: !(isManager && isCafe),
+    },
+
+    // MANAGER — Resto
+    {
+      href: '/pos/restaurant/manager',
+      icon: LayoutDashboard,
+      label: 'Resto Dashboard',
+      hidden: !(isManager && isResto),
+    },
+    {
+      href: '/pos/restaurant/manager/history',
+      icon: HistoryIcon,
+      label: 'Resto History',
+      hidden: !(isManager && isResto),
+    },
+    {
+      href: '/pos/restaurant/manager/menu',
+      icon: UtensilsCrossed,
+      label: 'Resto Menu',
+      hidden: !(isManager && isResto),
     },
   ].filter((link) => !link.hidden)
 
@@ -95,12 +137,17 @@ export function Sidebar() {
           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full shadow-md">
             <Image src="/img/logo.png" alt="Logo" fill className="object-cover" />
           </div>
-          <span className="text-foreground text-xl font-black tracking-tight">
-            GENIO <span className="text-primary">POS</span>
-          </span>
+          <div className="flex flex-col justify-center">
+            <span className="text-foreground text-lg font-black leading-tight tracking-tight">
+              GENIO
+            </span>
+            <span className="text-primary text-xs font-bold leading-tight tracking-widest">
+              SYARIAH HOTEL
+            </span>
+          </div>
         </div>
 
-        <nav className="flex w-full flex-col space-y-2">
+        <nav className="flex w-full flex-col space-y-1">
           {links.map((link) => {
             const isActive = pathname === link.href
             return (
@@ -108,14 +155,14 @@ export function Sidebar() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'flex h-14 w-full items-center gap-4 rounded-full px-5 transition-all duration-200',
+                  'flex h-12 w-full items-center gap-4 rounded-full px-5 transition-all duration-200',
                   isActive
                     ? 'bg-primary text-primary-foreground font-bold shadow-md'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground font-medium',
                 )}
                 title={link.label}
               >
-                <link.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <link.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
                 <span className="text-sm">{link.label}</span>
               </Link>
             )

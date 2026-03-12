@@ -1,4 +1,5 @@
 import { Pool } from 'pg'
+import bcrypt from 'bcryptjs'
 
 let pool: Pool
 
@@ -23,6 +24,8 @@ async function initDb(pool: Pool) {
   try {
     await client.query('BEGIN')
 
+    await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto')
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS units (
         id SERIAL PRIMARY KEY,
@@ -34,7 +37,7 @@ async function initDb(pool: Pool) {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         unit_id INTEGER REFERENCES units(id),
         username TEXT UNIQUE NOT NULL,
         role TEXT NOT NULL,
@@ -69,9 +72,9 @@ async function initDb(pool: Pool) {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS orders (
-        id SERIAL PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         unit_id INTEGER REFERENCES units(id),
-        user_id INTEGER REFERENCES users(id),
+        user_id UUID REFERENCES users(id),
         invoice_number TEXT UNIQUE NOT NULL,
         subtotal INTEGER NOT NULL,
         tax_amount INTEGER NOT NULL DEFAULT 0,
@@ -89,14 +92,44 @@ async function initDb(pool: Pool) {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS orders_items (
-        id SERIAL PRIMARY KEY,
-        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+        id BIGSERIAL PRIMARY KEY,
+        order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
         product_id INTEGER,
         name TEXT NOT NULL,
         price INTEGER NOT NULL,
         qty INTEGER NOT NULL,
         total_price INTEGER NOT NULL,
-        variants TEXT
+        variants TEXT,
+        note TEXT
+      )
+    `)
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS coa (
+        code TEXT PRIMARY KEY,
+        account_name TEXT NOT NULL,
+        account_type TEXT NOT NULL,
+        normal_balance TEXT NOT NULL
+      )
+    `)
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS journal_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        unit_id INTEGER REFERENCES units(id),
+        order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS journal_lines (
+        id BIGSERIAL PRIMARY KEY,
+        journal_entry_id UUID REFERENCES journal_entries(id) ON DELETE CASCADE,
+        account_code TEXT REFERENCES coa(code),
+        debit INTEGER NOT NULL DEFAULT 0,
+        kredit INTEGER NOT NULL DEFAULT 0
       )
     `)
 
@@ -106,6 +139,7 @@ async function initDb(pool: Pool) {
     await seedUsers(pool)
     await seedCategories(pool)
     await seedProducts(pool)
+    await seedCOA(pool)
   } catch (e) {
     await client.query('ROLLBACK')
     console.error('Failed to init DB', e)
@@ -141,28 +175,26 @@ async function seedUsers(pool: Pool) {
     const restoRes = await pool.query("SELECT id FROM units WHERE type = 'RESTO' LIMIT 1")
     const restoId = restoRes.rows[0]?.id
 
-    const password = '1234'
-
-    await pool.query('INSERT INTO users (username, role, password) VALUES ($1, $2, $3)', [
-      'admin',
-      'ADMIN',
-      password,
-    ])
+    const password = bcrypt.hashSync('1234', 10)
 
     await pool.query(
       'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
       ['jokowi', 'CASHIER', password, cafeId],
     )
 
-    await pool.query('INSERT INTO users (username, role, password) VALUES ($1, $2, $3)', [
-      'manager',
-      'MANAGER',
-      password,
-    ])
-
     await pool.query(
       'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
       ['windah', 'CASHIER', password, restoId],
+    )
+
+    await pool.query(
+      'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
+      ['cafe_mgr', 'MANAGER', password, cafeId],
+    )
+
+    await pool.query(
+      'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
+      ['resto_mgr', 'MANAGER', password, restoId],
     )
   }
 }
@@ -445,5 +477,36 @@ async function seedProducts(pool: Pool) {
       'https://loremflickr.com/800/600/icedtea,drink/all',
       '[]',
     ])
+  }
+}
+
+async function seedCOA(pool: Pool) {
+  const res = await pool.query('SELECT count(*) as count FROM coa')
+  const count = parseInt(res.rows[0].count)
+
+  if (count === 0) {
+    const accounts = [
+      { code: '1101', name: 'Kas Tunai', type: 'Asset', balance: 'Debit' },
+      { code: '1102', name: 'Kas di Bank (QRIS)', type: 'Asset', balance: 'Debit' },
+      { code: '1103', name: 'Kas di Bank (EDC BCA)', type: 'Asset', balance: 'Debit' },
+      { code: '1104', name: 'Persediaan (Inventory)', type: 'Asset', balance: 'Debit' },
+      { code: '2101', name: 'Hutang Pajak PB1', type: 'Liability', balance: 'Credit' },
+      { code: '2102', name: 'Hutang Lain-lain', type: 'Liability', balance: 'Credit' },
+      { code: '3101', name: 'Modal Disetor', type: 'Equity', balance: 'Credit' },
+      { code: '3102', name: 'Laba Ditahan', type: 'Equity', balance: 'Credit' },
+      { code: '4101', name: 'Pendapatan F&B — Restoran', type: 'Revenue', balance: 'Credit' },
+      { code: '4102', name: 'Pendapatan F&B — Cafe', type: 'Revenue', balance: 'Credit' },
+      { code: '4103', name: 'Pendapatan Kamar Hotel', type: 'Revenue', balance: 'Credit' },
+      { code: '5101', name: 'HPP — Restoran (COGS)', type: 'Expense', balance: 'Debit' },
+      { code: '5102', name: 'HPP — Cafe (COGS)', type: 'Expense', balance: 'Debit' },
+      { code: '5201', name: 'Beban Operasional', type: 'Expense', balance: 'Debit' },
+    ]
+
+    for (const acc of accounts) {
+      await pool.query(
+        'INSERT INTO coa (code, account_name, account_type, normal_balance) VALUES ($1, $2, $3, $4)',
+        [acc.code, acc.name, acc.type, acc.balance],
+      )
+    }
   }
 }

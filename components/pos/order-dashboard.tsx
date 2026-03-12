@@ -18,12 +18,12 @@ import {
   Bell,
   UtensilsCrossed,
   Hash,
+  Coffee,
 } from 'lucide-react'
 import { KitchenTicketModal } from '@/components/pos/kitchen-ticket-modal'
 
 interface OrderDashboardProps {
   unitId: number
-  unitName: string
 }
 
 type KitchenFilter = 'ALL' | 'NEW' | 'PREPARING' | 'READY'
@@ -107,7 +107,7 @@ const FILTER_TABS: { key: KitchenFilter; label: string; icon: any; activeClass: 
   {
     key: 'ALL',
     label: 'All Active',
-    icon: Utensils,
+    icon: 'DYNAMIC_ALL', // Will be resolved dynamically in the component
     activeClass: 'bg-primary/10 text-primary border-primary/30',
   },
   { key: 'NEW', label: 'New', icon: Bell, activeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -125,11 +125,11 @@ const FILTER_TABS: { key: KitchenFilter; label: string; icon: any; activeClass: 
   },
 ]
 
-export function OrderDashboard({ unitId, unitName }: OrderDashboardProps) {
+export function OrderDashboard({ unitId }: OrderDashboardProps) {
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<KitchenFilter>('ALL')
-  const [updatingId, setUpdatingId] = useState<number | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [selectedTicketOrder, setSelectedTicketOrder] = useState<any>(null)
   const [isTicketOpen, setIsTicketOpen] = useState(false)
 
@@ -152,7 +152,7 @@ export function OrderDashboard({ unitId, unitName }: OrderDashboardProps) {
     return () => clearInterval(interval)
   }, [fetchOrders])
 
-  const updateKitchenStatus = async (orderId: number, newStatus: string) => {
+  const updateKitchenStatus = async (orderId: string, newStatus: string) => {
     setUpdatingId(orderId)
     try {
       const res = await fetch(`/api/orders/${orderId}/status`, {
@@ -217,9 +217,13 @@ export function OrderDashboard({ unitId, unitName }: OrderDashboardProps) {
         <div>
           <h1 className="text-foreground flex items-center gap-3 text-3xl font-bold">
             <div className="bg-primary/10 flex h-11 w-11 items-center justify-center rounded-xl">
-              <ChefHat className="text-primary h-6 w-6" />
+              {unitId === 1 ? (
+                <Coffee className="text-primary h-6 w-6" />
+              ) : (
+                <ChefHat className="text-primary h-6 w-6" />
+              )}
             </div>
-            {unitName} Active Orders
+            Active Orders
           </h1>
           <p className="text-muted-foreground mt-1.5 ml-14 text-sm">
             {orders.length > 0 ? (
@@ -247,7 +251,7 @@ export function OrderDashboard({ unitId, unitName }: OrderDashboardProps) {
       <div className="mb-6 flex gap-2">
         {FILTER_TABS.map((tab) => {
           const count = tab.key === 'ALL' ? orders.length : statusCounts[tab.key] || 0
-          const TabIcon = tab.icon
+          const TabIcon = tab.icon === 'DYNAMIC_ALL' ? (unitId === 1 ? Coffee : Utensils) : tab.icon
           const isActive = filter === tab.key
           return (
             <button
@@ -286,9 +290,13 @@ export function OrderDashboard({ unitId, unitName }: OrderDashboardProps) {
             <p className="text-sm font-medium">Loading orders...</p>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-3">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <div className="bg-muted/50 flex h-20 w-20 items-center justify-center rounded-2xl">
-              <UtensilsCrossed className="text-muted-foreground h-10 w-10" />
+              {unitId === 1 ? (
+                <Coffee className="text-muted-foreground h-10 w-10" />
+              ) : (
+                <UtensilsCrossed className="text-muted-foreground h-10 w-10" />
+              )}
             </div>
             <div className="text-center">
               <p className="text-foreground text-lg font-semibold">All caught up!</p>
@@ -409,7 +417,13 @@ export function OrderDashboard({ unitId, unitName }: OrderDashboardProps) {
                               .filter(Boolean)
                           : []
                         return (
-                          <div key={idx} className={cn('flex gap-2.5', variants.length > 0 ? 'items-start' : 'items-center')}>
+                          <div
+                            key={idx}
+                            className={cn(
+                              'flex gap-2.5',
+                              variants.length > 0 ? 'items-start' : 'items-center',
+                            )}
+                          >
                             <span
                               className={cn(
                                 'flex h-6 min-w-6 items-center justify-center rounded-md text-[11px] font-bold text-white shadow-sm',
@@ -419,12 +433,17 @@ export function OrderDashboard({ unitId, unitName }: OrderDashboardProps) {
                               {item.qty}
                             </span>
                             <div className="min-w-0 flex-1">
-                              <p className="text-foreground text-sm font-semibold leading-snug">
+                              <p className="text-foreground text-sm leading-snug font-semibold">
                                 {item.name}
                               </p>
                               {variants.length > 0 && (
                                 <p className="text-muted-foreground mt-0.5 truncate text-[11px] italic">
                                   {variants.join(' · ')}
+                                </p>
+                              )}
+                              {item.note && (
+                                <p className="mt-0.5 truncate text-[11px] text-amber-600 italic">
+                                  Note: {item.note}
                                 </p>
                               )}
                             </div>

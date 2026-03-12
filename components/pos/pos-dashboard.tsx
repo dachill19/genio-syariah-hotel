@@ -134,6 +134,12 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
     setCart((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const updateNote = (index: number, note: string | undefined) => {
+    setCart((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, note } : item)),
+    )
+  }
+
   const handleCheckout = async (
     method: string,
     tableNum: string,
@@ -214,6 +220,7 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
         items={cart}
         onUpdateQty={updateQty}
         onRemove={removeFromCart}
+        onUpdateNote={updateNote}
         onCheckout={handleCheckout}
         taxRate={taxRate}
         tableNumber={tableNumber}

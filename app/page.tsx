@@ -19,10 +19,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
+      const isManager = user.role === 'MANAGER'
+
       if (user.unit_id === 1) {
-        router.push('/pos/cafe')
+        router.push(isManager ? '/pos/cafe/manager' : '/pos/cafe')
       } else if (user.unit_id === 2) {
-        router.push('/pos/restaurant')
+        router.push(isManager ? '/pos/restaurant/manager' : '/pos/restaurant')
       } else {
         router.push('/pos/cafe')
       }
@@ -62,7 +64,7 @@ export default function LoginPage() {
                 <Input
                   className="h-10 pl-10"
                   type="text"
-                  placeholder="e.g. cashier_cafe"
+                  placeholder="Username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={loading}

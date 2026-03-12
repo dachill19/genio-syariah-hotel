@@ -35,3 +35,25 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json()
+    const { name, price, cogs, category_id, unit_id, image, variants } = body
+
+    if (!name || !price || !unit_id) {
+      return NextResponse.json({ error: 'name, price, and unit_id are required' }, { status: 400 })
+    }
+
+    const pool = await getDb()
+    const res = await pool.query(
+      `INSERT INTO products (name, price, cogs, category_id, unit_id, image, variants)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, price, cogs || 0, category_id || null, unit_id, image || null, variants ? JSON.stringify(variants) : null],
+    )
+
+    return NextResponse.json(res.rows[0], { status: 201 })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}

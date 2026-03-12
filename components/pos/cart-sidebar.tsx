@@ -1,7 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Minus, Plus, Edit2, CreditCard, Banknote, QrCode, Check } from 'lucide-react'
+import {
+  Minus,
+  Plus,
+  Edit2,
+  CreditCard,
+  Banknote,
+  QrCode,
+  Check,
+  MessageSquare,
+} from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { formatRupiah, cn } from '@/lib/utils'
@@ -11,6 +20,7 @@ interface CartSidebarProps {
   items: CartItem[]
   onUpdateQty: (id: number, delta: number) => void
   onRemove: (id: number) => void
+  onUpdateNote: (index: number, note: string | undefined) => void
   onCheckout: (
     paymentMethod: string,
     tableNumber: string,
@@ -33,6 +43,7 @@ export function CartSidebar({
   items,
   onUpdateQty,
   onRemove,
+  onUpdateNote,
   onCheckout,
   taxRate,
   tableNumber,
@@ -138,7 +149,9 @@ export function CartSidebar({
           ) : (
             <div className="space-y-0.5">
               <h2 className="text-muted-foreground text-lg font-medium italic">Not filled yet</h2>
-              <p className="text-muted-foreground/60 text-xs">Click ✏️ to fill table & name</p>
+              <p className="text-muted-foreground/60 text-xs">
+                Click the edit button to add details
+              </p>
             </div>
           )}
         </div>
@@ -189,61 +202,88 @@ export function CartSidebar({
           items.map((item, index) => (
             <div
               key={`${item.id}-${index}`}
-              className="animate-fade-in-up bg-card flex gap-3 rounded-2xl border p-3 shadow-sm transition-all hover:shadow-md"
+              className="animate-fade-in-up bg-card flex flex-col gap-2 rounded-2xl border p-3 shadow-sm transition-all hover:shadow-md"
             >
-              {/* Thumbnail */}
-              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl">
-                {item.image ? (
-                  <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="bg-muted text-muted-foreground flex h-full w-full items-center justify-center text-[10px]">
-                    No Img
-                  </div>
-                )}
-              </div>
-
-              {/* Details */}
-              <div className="flex flex-1 flex-col justify-between gap-1">
-                <div className="flex items-start justify-between gap-2">
-                  <h4 className="text-foreground line-clamp-2 text-sm leading-tight font-semibold">
-                    {item.name}
-                  </h4>
-                  <span className="text-foreground shrink-0 text-sm font-bold">
-                    {formatRupiah(item.totalPrice * item.qty)}
-                  </span>
+              <div className="flex gap-3">
+                {/* Thumbnail */}
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl">
+                  {item.image ? (
+                    <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="bg-muted text-muted-foreground flex h-full w-full items-center justify-center text-[10px]">
+                      No Img
+                    </div>
+                  )}
                 </div>
 
-                {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
-                  <p className="text-muted-foreground line-clamp-1 text-xs">
-                    {Object.values(item.selectedVariants)
-                      .map((opt: any) => opt.name)
-                      .join(', ')}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between pt-0.5">
-                  <div className="text-primary text-xs font-medium">
-                    {formatRupiah(item.totalPrice)}
-                    <span className="text-muted-foreground ml-2 text-[11px]">{item.qty}x</span>
+                {/* Details */}
+                <div className="flex flex-1 flex-col justify-between gap-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-foreground line-clamp-2 text-sm leading-tight font-semibold">
+                      {item.name}
+                    </h4>
+                    <span className="text-foreground shrink-0 text-sm font-bold">
+                      {formatRupiah(item.totalPrice * item.qty)}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => onUpdateQty(index, -1)}
-                      className="bg-muted/60 hover:bg-muted flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="w-5 text-center text-xs font-bold">{item.qty}</span>
-                    <button
-                      onClick={() => onUpdateQty(index, 1)}
-                      className="bg-muted/60 hover:bg-muted flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
+                  {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
+                    <p className="text-muted-foreground line-clamp-1 text-xs">
+                      {Object.values(item.selectedVariants)
+                        .map((opt: any) => opt.name)
+                        .join(', ')}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between pt-0.5">
+                    <div className="text-primary text-xs font-medium">
+                      {formatRupiah(item.totalPrice)}
+                      <span className="text-muted-foreground ml-2 text-[11px]">{item.qty}x</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => onUpdateQty(index, -1)}
+                        className="bg-muted/60 hover:bg-muted flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="w-5 text-center text-xs font-bold">{item.qty}</span>
+                      <button
+                        onClick={() => onUpdateQty(index, 1)}
+                        className="bg-muted/60 hover:bg-muted flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Note */}
+              {item.note !== undefined ? (
+                <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-2.5 py-2">
+                  <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+                  <input
+                    className="flex-1 bg-transparent text-xs text-amber-800 outline-none placeholder:text-amber-400"
+                    value={item.note}
+                    onChange={(e) => onUpdateNote(index, e.target.value)}
+                    onBlur={() => {
+                      if (item.note === '') onUpdateNote(index, undefined)
+                    }}
+                    placeholder="Customer note..."
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => onUpdateNote(index, '')}
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start rounded-md px-1 py-0.5 text-[11px] transition-colors hover:bg-amber-50"
+                >
+                  <MessageSquare className="h-3 w-3" />
+                  Add note
+                </button>
+              )}
             </div>
           ))
         )}

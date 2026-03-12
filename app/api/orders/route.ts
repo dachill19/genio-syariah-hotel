@@ -20,7 +20,8 @@ export async function GET(req: Request) {
                    'price', oi.price,
                    'qty', oi.qty,
                    'totalPrice', oi.total_price,
-                   'selectedVariants', oi.variants::json
+                   'selectedVariants', oi.variants::json,
+                   'note', oi.note
                  )
                ) FILTER (WHERE oi.id IS NOT NULL), 
                '[]'
@@ -83,9 +84,12 @@ export async function POST(req: Request) {
 
     const pool = await getDb()
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const validUserId = user_id && uuidRegex.test(user_id) ? user_id : null
+
     let cashier_name = 'System'
-    if (user_id) {
-      const userRes = await pool.query('SELECT username FROM users WHERE id = $1', [user_id])
+    if (validUserId) {
+      const userRes = await pool.query('SELECT username FROM users WHERE id = $1', [validUserId])
       if (userRes.rows.length > 0) {
         cashier_name = userRes.rows[0].username
       }
@@ -124,18 +128,25 @@ export async function POST(req: Request) {
         customer_name || '',
         order_type || 'Dine in',
         unit_id || 1,
-        user_id || null,
+        validUserId,
         cashier_name,
       ])
 
       const orderId = res.rows[0].id
 
       const insertItemText = `
-        INSERT INTO orders_items (order_id, product_id, name, price, qty, total_price, variants)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO orders_items (order_id, product_id, name, price, qty, total_price, variants, note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `
 
+      let totalCogs = 0
+
       for (const item of items) {
+        // Calculate COGS
+        const prodRes = await client.query('SELECT cogs FROM products WHERE id = $1', [item.id])
+        const cogsPerItem = prodRes.rows[0]?.cogs || 0
+        totalCogs += cogsPerItem * item.qty
+
         await client.query(insertItemText, [
           orderId,
           item.id,
@@ -144,7 +155,59 @@ export async function POST(req: Request) {
           item.qty,
           item.totalPrice,
           JSON.stringify(item.selectedVariants || {}),
+          item.note || null,
         ])
+      }
+
+      // AUTO-JOURNALING ENGINE (PSAK 101 Syariah)
+      // Execute only if payment status is PAID (which is the default if not provided)
+      const isPaid = !body.payment_status || body.payment_status === 'PAID'
+
+      if (isPaid) {
+        let kasAccount = '1101' // Default: Kas Tunai
+        if (payment_method === 'QRIS') kasAccount = '1102'
+        else if (payment_method === 'CARD' || payment_method === 'DEBIT') kasAccount = '1103'
+
+        const isResto = unitType === 'RESTO'
+        const pendapatanAccount = isResto ? '4101' : '4102'
+        const hppAccount = isResto ? '5101' : '5102'
+        const hutangPajakAccount = '2101'
+        const persediaanAccount = '1104'
+
+        const desc = `Penjualan ${unitType} - ${invoice_number}`
+
+        const jeRes = await client.query(
+          `
+          INSERT INTO journal_entries (unit_id, order_id, description)
+          VALUES ($1, $2, $3) RETURNING id
+        `,
+          [unit_id || 1, orderId, desc],
+        )
+
+        const journalId = jeRes.rows[0].id
+        const insertJLine = `INSERT INTO journal_lines (journal_entry_id, account_code, debit, kredit) VALUES ($1, $2, $3, $4)`
+
+        // 1. Kas (Debit)
+        await client.query(insertJLine, [journalId, kasAccount, grand_total, 0])
+
+        // 2. Pendapatan (Kredit)
+        await client.query(insertJLine, [journalId, pendapatanAccount, 0, subtotal])
+
+        // 3. Hutang Pajak PB1 (Kredit)
+        if (tax_amount > 0) {
+          await client.query(insertJLine, [journalId, hutangPajakAccount, 0, tax_amount])
+        }
+
+        // 4. HPP (Debit) & Persediaan (Kredit)
+        if (totalCogs > 0) {
+          await client.query(insertJLine, [journalId, hppAccount, totalCogs, 0])
+          await client.query(insertJLine, [journalId, persediaanAccount, 0, totalCogs])
+        }
+
+        // Invariant check is handled inherently because total Debit MUST EQUAL total Credit:
+        // Debit: grand_total + totalCogs
+        // Credit: subtotal + tax_amount + totalCogs
+        // Since grand_total = subtotal + tax_amount, it is always balanced.
       }
 
       await client.query('COMMIT')

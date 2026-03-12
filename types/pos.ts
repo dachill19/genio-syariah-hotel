@@ -16,10 +16,10 @@ export interface Unit {
 }
 
 export interface User {
-  id: number
+  id: string
   unit_id?: number
   username: string
-  role: 'CASHIER' | 'MANAGER' | 'FINANCE' | 'ADMIN'
+  role: 'CASHIER' | 'MANAGER'
 }
 
 export interface Product {
@@ -36,6 +36,7 @@ export interface CartItem extends Product {
   qty: number
   selectedVariants?: Record<string, VariantOption>
   totalPrice: number
+  note?: string
 }
 
 export type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED' | 'VOID'
@@ -44,9 +45,9 @@ export type KitchenStatus = 'NEW' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCE
 export type OrderType = 'Dine in' | 'Take Away'
 
 export interface Order {
-  id?: number
+  id?: string
   unit_id?: number
-  user_id?: number
+  user_id?: string
   invoice_number: string
   created_at: string
   grand_total: number

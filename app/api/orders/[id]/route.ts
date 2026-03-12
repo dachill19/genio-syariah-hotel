@@ -16,7 +16,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                    'price', oi.price,
                    'qty', oi.qty,
                    'totalPrice', oi.total_price,
-                   'selectedVariants', oi.variants::json
+                   'selectedVariants', oi.variants::json,
+                   'note', oi.note
                  )
                ) FILTER (WHERE oi.id IS NOT NULL), 
                '[]'
@@ -26,24 +27,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       LEFT JOIN users u ON o.user_id = u.id
     `
     const decodedId = decodeURIComponent(id)
-    let paramId: string | number = decodedId
     let whereClause = ''
 
     if (decodedId.startsWith('INV')) {
       whereClause = ' WHERE o.invoice_number = $1'
-      paramId = decodedId
     } else {
-      const parsed = parseInt(decodedId)
-      if (isNaN(parsed)) {
-        return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
-      }
       whereClause = ' WHERE o.id = $1'
-      paramId = parsed
     }
 
     query += whereClause + ' GROUP BY o.id, u.username'
 
-    const res = await pool.query(query, [paramId])
+    const res = await pool.query(query, [decodedId])
 
     if (res.rowCount === 0) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -61,10 +55,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const body = await req.json()
     const { items, subtotal, tax_amount, grand_total } = body
 
-    const orderId = parseInt(id)
-    if (isNaN(orderId)) {
-      return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 })
-    }
+    const orderId = id
 
     const pool = await getDb()
     const client = await pool.connect()
@@ -75,8 +66,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       await client.query('DELETE FROM orders_items WHERE order_id = $1', [orderId])
 
       const insertItemText = `
-        INSERT INTO orders_items (order_id, product_id, name, price, qty, total_price, variants)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO orders_items (order_id, product_id, name, price, qty, total_price, variants, note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `
 
       for (const item of items) {
@@ -88,6 +79,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           item.qty,
           item.totalPrice,
           JSON.stringify(item.selectedVariants || {}),
+          item.note || null,
         ])
       }
 

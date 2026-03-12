@@ -8,8 +8,9 @@ interface InvoiceTemplateProps {
 export function InvoiceTemplate({ order }: InvoiceTemplateProps) {
   return (
     <div className="w-[80mm] bg-white px-4 pt-5 pb-6 font-mono text-sm leading-tight text-black">
-      <div className="mb-4 text-center">
-        <h1 className="text-xl font-bold">AXL Coffee</h1>
+      <div className="mb-4 flex flex-col items-center justify-center text-center">
+        <img src="/img/logo.png" alt="Logo" className="mb-2 h-14 w-auto contrast-125 grayscale" />
+        <h1 className="text-xl font-bold">{order.unit_id === 2 ? 'AXL Resto' : 'AXL Coffee'}</h1>
         <p className="text-xs">Jl. Adisucipto, Colomadu</p>
       </div>
 

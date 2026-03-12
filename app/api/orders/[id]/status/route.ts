@@ -8,11 +8,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const pool = await getDb()
 
-    let paramId: string | number = id
+    let paramId: string = id
     const isInvoice = id.startsWith('INV-')
-    if (!isInvoice) {
-      paramId = parseInt(id)
-    }
     const idColumn = isInvoice ? 'invoice_number' : 'id'
 
     const updates: string[] = []

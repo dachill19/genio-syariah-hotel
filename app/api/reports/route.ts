@@ -3,23 +3,23 @@ import { getDb } from '@/lib/db'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const date = searchParams.get('date')
   const unitId = searchParams.get('unitId')
+  const cashierName = searchParams.get('cashierName')
 
-  if (!date) {
-    return NextResponse.json({ error: 'Date is required' }, { status: 400 })
+  if (!unitId || !cashierName) {
+    return NextResponse.json({ error: 'unitId and cashierName are required' }, { status: 400 })
   }
 
   try {
     const pool = await getDb()
 
-    let whereClause = "WHERE DATE(orders.created_at) = $1 AND orders.payment_status != 'VOID'"
-    const params = [date]
+    // Use timezone-aware date: convert to Asia/Jakarta (UTC+7) to get the correct local date
+    const now = new Date()
+    const today = new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-    if (unitId) {
-      whereClause += ` AND orders.unit_id = $${params.length + 1}`
-      params.push(unitId)
-    }
+    // We strictly filter by date = today (local), matching unit_id, matching cashier_name, and exclude VOID
+    const whereClause = `WHERE DATE(orders.created_at AT TIME ZONE 'Asia/Jakarta') = $1 AND orders.unit_id = $2 AND orders.cashier_name = $3 AND orders.payment_status != 'VOID'`
+    const params = [today, unitId, cashierName]
 
     const transactionsQuery = `
       SELECT orders.*,
@@ -44,17 +44,13 @@ export async function GET(req: Request) {
 
     const summaryQuery = `
       SELECT 
-        COALESCE(SUM(o.grand_total), 0) as total_sales,
-        COUNT(*) as total_transactions,
-        COALESCE(SUM(sub.total_cogs), 0) as total_cogs
-      FROM orders o
-      LEFT JOIN (
-        SELECT oi.order_id, SUM(COALESCE(p.cogs, 0) * oi.qty) as total_cogs
-        FROM orders_items oi
-        LEFT JOIN products p ON oi.product_id = p.id
-        GROUP BY oi.order_id
-      ) sub ON o.id = sub.order_id
-      ${whereClause.replace(/orders\./g, 'o.')}
+       COALESCE(SUM(orders.grand_total), 0) as total_sales,
+       COUNT(*) as total_transactions,
+       COALESCE(SUM(
+         (SELECT SUM(qty) FROM orders_items WHERE order_id = orders.id)
+       ), 0) as total_items_sold
+      FROM orders
+      ${whereClause}
     `
 
     const [transactionsRes, summaryRes] = await Promise.all([
@@ -65,11 +61,12 @@ export async function GET(req: Request) {
     const transactions = transactionsRes.rows
     const summary = summaryRes.rows[0]
 
+    // Note: No COGS or profit margin is returned here anymore as per security requirement for cashiers
     return NextResponse.json({
       summary: {
         total_sales: parseInt(summary?.total_sales || '0'),
         total_transactions: parseInt(summary?.total_transactions || '0'),
-        total_cogs: parseInt(summary?.total_cogs || '0'),
+        total_items_sold: parseInt(summary?.total_items_sold || '0'),
       },
       transactions: transactions,
     })

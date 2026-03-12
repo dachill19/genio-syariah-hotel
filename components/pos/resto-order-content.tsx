@@ -82,6 +82,7 @@ export function RestoOrderContent({ unitId, unitName }: RestoOrderContentProps) 
               qty: item.qty,
               selectedVariants: item.selectedVariants || {},
               totalPrice: item.totalPrice || item.price,
+              note: item.note || '',
             }))
             setCart(existingItems)
           }
@@ -161,6 +162,12 @@ export function RestoOrderContent({ unitId, unitName }: RestoOrderContentProps) 
 
   const removeFromCart = (index: number) => {
     setCart((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const updateNote = (index: number, note: string | undefined) => {
+    setCart((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, note } : item)),
+    )
   }
 
   const handleCheckout = async (
@@ -269,6 +276,7 @@ export function RestoOrderContent({ unitId, unitName }: RestoOrderContentProps) 
         items={cart}
         onUpdateQty={updateQty}
         onRemove={removeFromCart}
+        onUpdateNote={updateNote}
         onCheckout={handleCheckout}
         taxRate={taxRate}
         tableNumber={tableNumber}

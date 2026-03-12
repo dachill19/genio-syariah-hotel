@@ -125,7 +125,7 @@ export function ProductGrid({ products, onAddToCart }: ProductGridProps) {
               </div>
 
               {/* Category Badge */}
-              <div className="bg-primary/10 text-primary absolute top-5 left-5 rounded-md px-2 py-0.5 text-[11px] font-semibold backdrop-blur-sm">
+              <div className="bg-background/95 text-foreground absolute top-5 left-5 rounded-md px-2 py-1 text-[11px] font-bold shadow-sm backdrop-blur-md">
                 {product.category}
               </div>
             </div>

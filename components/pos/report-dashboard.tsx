@@ -3,27 +3,24 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { formatRupiah, cn } from '@/lib/utils'
 import {
   FileText,
   TrendingUp,
-  PiggyBank,
-  Target,
-  Printer,
   BarChart3,
   Banknote,
   QrCode,
   CreditCard,
   Receipt,
-  Calendar,
+  Package,
+  Printer,
 } from 'lucide-react'
 import { Order } from '@/types/pos'
 import { InvoiceModal } from '@/components/pos/invoice-modal'
+import { useAuthStore } from '@/stores/auth-store'
 
 interface ReportPageProps {
   unitId: number
-  unitName: string
 }
 
 const getPaymentBadgeConfig = (method: string) => {
@@ -45,7 +42,12 @@ const getPaymentBadgeConfig = (method: string) => {
         icon: CreditCard,
       }
     default:
-      return { bg: 'bg-muted', text: 'text-muted-foreground', bar: 'bg-muted-foreground/60', icon: Banknote }
+      return {
+        bg: 'bg-muted',
+        text: 'text-muted-foreground',
+        bar: 'bg-muted-foreground/60',
+        icon: Banknote,
+      }
   }
 }
 
@@ -64,10 +66,10 @@ const getPaymentStatusStyle = (status: string) => {
   }
 }
 
-export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
+export function ReportDashboard({ unitId }: ReportPageProps) {
+  const { user } = useAuthStore()
   const [summary, setSummary] = useState<any>(null)
   const [transactions, setTransactions] = useState<any[]>([])
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
@@ -78,8 +80,10 @@ export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
   }
 
   useEffect(() => {
+    if (!user?.username) return
+
     setLoading(true)
-    fetch(`/api/reports?date=${date}&unitId=${unitId}`)
+    fetch(`/api/reports?unitId=${unitId}&cashierName=${encodeURIComponent(user.username)}`)
       .then((res) => res.json())
       .then((data) => {
         setSummary(data.summary)
@@ -87,15 +91,11 @@ export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
       })
       .catch((err) => console.error('Failed to fetch reports', err))
       .finally(() => setLoading(false))
-  }, [date, unitId])
-
+  }, [unitId, user?.username])
 
   const totalSales = summary?.total_sales || 0
   const totalTransactions = summary?.total_transactions || 0
-  const totalCogs = summary?.total_cogs || 0
-  const grossProfit = totalSales - totalCogs
-  const aov = totalTransactions > 0 ? Math.round(totalSales / totalTransactions) : 0
-  const profitMargin = totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : '0'
+  const totalItemsSold = summary?.total_items_sold || 0
 
   const paymentBreakdown = transactions.reduce(
     (acc: Record<string, { count: number; total: number }>, order: any) => {
@@ -123,60 +123,53 @@ export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
       gradient: 'from-emerald-50 to-green-50/30',
     },
     {
-      title: 'Total Transactions',
-      value: totalTransactions,
-      subtitle: `Avg ${formatRupiah(aov)} / order`,
-      icon: Receipt,
-      color: 'text-blue-600',
-      bgAccent: 'bg-blue-50',
-      gradient: 'from-blue-50 to-indigo-50/30',
-    },
-    {
-      title: 'Gross Profit',
-      value: formatRupiah(grossProfit),
-      subtitle: `${profitMargin}% margin`,
-      icon: PiggyBank,
+      title: 'Current Cash Drawer',
+      value: formatRupiah(paymentBreakdown.CASH.total),
+      subtitle: `From ${paymentBreakdown.CASH.count} cash payments`,
+      icon: Banknote,
       color: 'text-emerald-600',
       bgAccent: 'bg-emerald-50',
       gradient: 'from-emerald-50 to-teal-50/30',
     },
     {
-      title: 'Avg. Order Value',
-      value: formatRupiah(aov),
-      subtitle: totalTransactions > 0 ? `From ${totalTransactions} orders` : 'No orders yet',
-      icon: Target,
-      color: 'text-violet-600',
-      bgAccent: 'bg-violet-50',
-      gradient: 'from-violet-50 to-purple-50/30',
+      title: 'Total Items Sold',
+      value: totalItemsSold,
+      subtitle: 'Across all orders today',
+      icon: Package,
+      color: 'text-orange-600',
+      bgAccent: 'bg-orange-50',
+      gradient: 'from-orange-50 to-amber-50/30',
+    },
+    {
+      title: 'Total Transactions',
+      value: totalTransactions,
+      subtitle: 'Completed orders',
+      icon: Receipt,
+      color: 'text-blue-600',
+      bgAccent: 'bg-blue-50',
+      gradient: 'from-blue-50 to-indigo-50/30',
     },
   ]
 
   return (
     <div className="bg-background flex h-screen flex-col overflow-hidden p-8">
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-foreground flex items-center gap-3 text-3xl font-bold">
             <div className="bg-primary/10 flex h-11 w-11 items-center justify-center rounded-xl">
               <BarChart3 className="text-primary h-6 w-6" />
             </div>
-            {unitName} Sales Report
+            Sales Report
           </h1>
           <p className="text-muted-foreground mt-1.5 ml-14 text-sm">
-            Daily performance overview and transaction history
+            Current Shift ({user?.username || 'Cashier'}) —{' '}
+            {new Date().toLocaleDateString('id-ID', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
           </p>
-        </div>
-
-        <div className="flex gap-3">
-          <div className="relative">
-            <Calendar className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-card w-auto rounded-xl pl-9"
-            />
-          </div>
         </div>
       </div>
 
@@ -219,41 +212,47 @@ export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
           {Object.entries(paymentBreakdown)
             .filter(([method]) => method !== 'PENDING')
             .map(([method, data]) => {
-            const config = getPaymentBadgeConfig(method)
-            const PaymentIcon = config.icon
-            const percentage =
-              totalTransactions > 0 ? ((data.count / totalTransactions) * 100).toFixed(0) : '0'
-            return (
-              <div
-                key={method}
-                className="bg-card flex items-center gap-4 rounded-xl border p-4 shadow-sm"
-              >
+              const config = getPaymentBadgeConfig(method)
+              const PaymentIcon = config.icon
+              const percentage =
+                totalTransactions > 0 ? ((data.count / totalTransactions) * 100).toFixed(0) : '0'
+              return (
                 <div
-                  className={cn('flex h-10 w-10 items-center justify-center rounded-xl', config.bg)}
+                  key={method}
+                  className="bg-card flex items-center gap-4 rounded-xl border p-4 shadow-sm"
                 >
-                  <PaymentIcon className={cn('h-5 w-5', config.text)} />
+                  <div
+                    className={cn(
+                      'flex h-10 w-10 items-center justify-center rounded-xl',
+                      config.bg,
+                    )}
+                  >
+                    <PaymentIcon className={cn('h-5 w-5', config.text)} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold">{method}</span>
+                      <span className="text-muted-foreground text-xs">{percentage}%</span>
+                    </div>
+                    <div className="bg-muted mt-1.5 h-1.5 w-full overflow-hidden rounded-full">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all duration-500',
+                          config.bar,
+                        )}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <div className="text-muted-foreground mt-1 flex justify-between text-[11px]">
+                      <span>
+                        {data.count} {data.count === 1 ? 'transaction' : 'transactions'}
+                      </span>
+                      <span className="font-medium">{formatRupiah(data.total)}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold">{method}</span>
-                    <span className="text-muted-foreground text-xs">{percentage}%</span>
-                  </div>
-                  <div className="bg-muted mt-1.5 h-1.5 w-full overflow-hidden rounded-full">
-                    <div
-                      className={cn('h-full rounded-full transition-all duration-500', config.bar)}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                  <div className="text-muted-foreground mt-1 flex justify-between text-[11px]">
-                    <span>
-                      {data.count} {data.count === 1 ? 'transaction' : 'transactions'}
-                    </span>
-                    <span className="font-medium">{formatRupiah(data.total)}</span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
         </div>
       )}
 
@@ -367,8 +366,8 @@ export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
                   )
                 })}
                 {transactions.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="p-16 text-center">
+                  <tr className="h-full">
+                    <td colSpan={6} className="p-16 text-center align-middle">
                       <div className="flex flex-col items-center gap-3">
                         <div className="bg-muted/50 flex h-16 w-16 items-center justify-center rounded-2xl">
                           <Receipt className="text-muted-foreground h-8 w-8" />

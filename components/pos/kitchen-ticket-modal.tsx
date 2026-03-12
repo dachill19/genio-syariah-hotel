@@ -98,6 +98,9 @@ export function KitchenTicketModal({ order, isOpen, onClose }: KitchenTicketModa
                               - {v}
                             </p>
                           ))}
+                        {item.note && (
+                          <p className="ml-2 text-xs italic">Note: {item.note}</p>
+                        )}
                         <p>{item.qty} x item</p>
                       </div>
                     )

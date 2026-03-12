@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { User, Unit } from '@/types/pos'
 
 interface AuthState {
@@ -41,6 +41,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'pos-auth',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         user: state.user,
         activeUnit: state.activeUnit,
