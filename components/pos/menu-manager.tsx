@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { VariantGroup } from '@/types/pos'
 import { formatRupiah, cn } from '@/lib/utils'
 import {
   Plus,
@@ -23,7 +24,6 @@ import {
   Tag,
   Package,
   Save,
-  FolderOpen,
 } from 'lucide-react'
 
 interface MenuManagerProps {
@@ -44,9 +44,29 @@ interface Product {
   category_id: number | null
   category: string | null
   image: string | null
-  variants: any
+  variants: VariantGroup[]
   is_active: number
 }
+
+interface ProductFormState {
+  name: string
+  price: string
+  cogs: string
+  category_id: string
+  image: File | null
+  imagePreview: string
+  variants: VariantGroup[]
+}
+
+const emptyProductForm = (): ProductFormState => ({
+  name: '',
+  price: '',
+  cogs: '',
+  category_id: '',
+  image: null,
+  imagePreview: '',
+  variants: [],
+})
 
 export function MenuManager({ unitId }: MenuManagerProps) {
   const [products, setProducts] = useState<Product[]>([])
@@ -64,14 +84,7 @@ export function MenuManager({ unitId }: MenuManagerProps) {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [categoryName, setCategoryName] = useState('')
 
-  const [productForm, setProductForm] = useState({
-    name: '',
-    price: '',
-    cogs: '',
-    category_id: '' as string,
-    image: null as File | null,
-    imagePreview: '',
-  })
+  const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm)
 
   const fetchProducts = () => {
     setLoading(true)
@@ -110,21 +123,115 @@ export function MenuManager({ unitId }: MenuManagerProps) {
         category_id: product.category_id?.toString() || '',
         image: null,
         imagePreview: product.image || '',
+        variants: Array.isArray(product.variants) ? product.variants : [],
       })
     } else {
       setEditingProduct(null)
-      setProductForm({ name: '', price: '', cogs: '', category_id: '', image: null, imagePreview: '' })
+      setProductForm(emptyProductForm())
     }
     setShowProductModal(true)
   }
 
+  const updateVariantGroup = (groupIndex: number, patch: Partial<VariantGroup>) => {
+    setProductForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((group, index) =>
+        index === groupIndex ? { ...group, ...patch } : group,
+      ),
+    }))
+  }
+
+  const addVariantGroup = () => {
+    setProductForm((prev) => ({
+      ...prev,
+      variants: [...prev.variants, { name: '', options: [{ name: '', price: 0 }] }],
+    }))
+  }
+
+  const removeVariantGroup = (groupIndex: number) => {
+    setProductForm((prev) => ({
+      ...prev,
+      variants: prev.variants.filter((_, index) => index !== groupIndex),
+    }))
+  }
+
+  const addVariantOption = (groupIndex: number) => {
+    setProductForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((group, index) =>
+        index === groupIndex
+          ? {
+              ...group,
+              options: [...group.options, { name: '', price: 0 }],
+            }
+          : group,
+      ),
+    }))
+  }
+
+  const updateVariantOption = (
+    groupIndex: number,
+    optionIndex: number,
+    field: 'name' | 'price',
+    value: string,
+  ) => {
+    setProductForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((group, currentGroupIndex) =>
+        currentGroupIndex === groupIndex
+          ? {
+              ...group,
+              options: group.options.map((option, currentOptionIndex) =>
+                currentOptionIndex === optionIndex
+                  ? {
+                      ...option,
+                      [field]: field === 'price' ? Number(value || 0) : value,
+                    }
+                  : option,
+              ),
+            }
+          : group,
+      ),
+    }))
+  }
+
+  const removeVariantOption = (groupIndex: number, optionIndex: number) => {
+    setProductForm((prev) => ({
+      ...prev,
+      variants: prev.variants.map((group, index) =>
+        index === groupIndex
+          ? {
+              ...group,
+              options: group.options.filter((_, currentOptionIndex) => currentOptionIndex !== optionIndex),
+            }
+          : group,
+      ),
+    }))
+  }
+
+  const normalizeVariants = (variants: VariantGroup[]) => {
+    return variants
+      .map((group) => ({
+        name: group.name.trim(),
+        options: group.options
+          .map((option) => ({
+            name: option.name.trim(),
+            price: Number(option.price) || 0,
+          }))
+          .filter((option) => option.name),
+      }))
+      .filter((group) => group.name && group.options.length > 0)
+  }
+
   const saveProduct = async () => {
+    const variants = normalizeVariants(productForm.variants)
     const formData = new FormData()
     formData.append('name', productForm.name)
     formData.append('price', productForm.price)
     formData.append('cogs', productForm.cogs)
     formData.append('category_id', productForm.category_id)
     formData.append('unit_id', unitId.toString())
+    formData.append('variants', JSON.stringify(variants))
     
     if (productForm.image) {
       formData.append('image', productForm.image)
@@ -143,6 +250,7 @@ export function MenuManager({ unitId }: MenuManagerProps) {
         })
       }
       setShowProductModal(false)
+      setProductForm(emptyProductForm())
       fetchProducts()
     } catch (e) {
       console.error(e)
@@ -363,8 +471,8 @@ export function MenuManager({ unitId }: MenuManagerProps) {
       </div>
 
       {showProductModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowProductModal(false)}>
-          <div className="bg-card w-full max-w-md rounded-2xl border p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={() => setShowProductModal(false)}>
+          <div className="bg-card max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-foreground text-lg font-bold">
                 {editingProduct ? 'Edit Product' : 'Add Product'}
@@ -373,84 +481,172 @@ export function MenuManager({ unitId }: MenuManagerProps) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Name</label>
-                <Input
-                  value={productForm.name}
-                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                  placeholder="Product name"
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">Price</label>
-                  <Input
-                    type="number"
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                    placeholder="0"
-                    className="rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">COGS</label>
-                  <Input
-                    type="number"
-                    value={productForm.cogs}
-                    onChange={(e) => setProductForm({ ...productForm, cogs: e.target.value })}
-                    placeholder="0"
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Category</label>
-                <select
-                  value={productForm.category_id}
-                  onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                  className="border-input bg-background w-full rounded-xl border px-3 py-2 text-sm"
-                >
-                  <option value="">No category</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Product Image</label>
-                <div className="flex flex-col gap-3">
-                  {productForm.imagePreview && (
-                    <div className="bg-muted relative aspect-square overflow-hidden rounded-xl">
-                      <img 
-                        src={productForm.imagePreview} 
-                        alt="Preview" 
-                        className="h-full w-full object-cover" 
+            <div className="space-y-6">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-foreground mb-1 block text-sm font-medium">Name</label>
+                    <Input
+                      value={productForm.name}
+                      onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                      placeholder="Product name"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-foreground mb-1 block text-sm font-medium">Price</label>
+                      <Input
+                        type="number"
+                        value={productForm.price}
+                        onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                        placeholder="0"
+                        className="rounded-xl"
                       />
                     </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        const reader = new FileReader()
-                        reader.onloadend = () => {
-                          setProductForm({
-                            ...productForm,
-                            image: file,
-                            imagePreview: reader.result as string,
-                          })
+                    <div>
+                      <label className="text-foreground mb-1 block text-sm font-medium">COGS</label>
+                      <Input
+                        type="number"
+                        value={productForm.cogs}
+                        onChange={(e) => setProductForm({ ...productForm, cogs: e.target.value })}
+                        placeholder="0"
+                        className="rounded-xl"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-foreground mb-1 block text-sm font-medium">Category</label>
+                    <select
+                      value={productForm.category_id}
+                      onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
+                      className="border-input bg-background w-full rounded-xl border px-3 py-2 text-sm"
+                    >
+                      <option value="">No category</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-foreground mb-1 block text-sm font-medium">Product Image</label>
+                  <div className="flex flex-col gap-3">
+                    {productForm.imagePreview && (
+                      <div className="bg-muted relative aspect-square overflow-hidden rounded-xl">
+                        <img
+                          src={productForm.imagePreview}
+                          alt="Preview"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          const reader = new FileReader()
+                          reader.onloadend = () => {
+                            setProductForm({
+                              ...productForm,
+                              image: file,
+                              imagePreview: reader.result as string,
+                            })
+                          }
+                          reader.readAsDataURL(file)
                         }
-                        reader.readAsDataURL(file)
-                      }
-                    }}
-                    className="border-input bg-background w-full cursor-pointer rounded-xl border px-3 py-2 text-sm file:mr-4 file:border-0 file:bg-primary/10 file:px-4 file:py-1.5 file:text-sm file:font-medium"
-                  />
+                      }}
+                      className="border-input bg-background w-full cursor-pointer rounded-xl border px-3 py-2 text-sm file:mr-4 file:border-0 file:bg-primary/10 file:px-4 file:py-1.5 file:text-sm file:font-medium"
+                    />
+                  </div>
                 </div>
               </div>
+
+              <div className="space-y-4 rounded-2xl border p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-foreground text-base font-semibold">Variants</h3>
+                    <p className="text-muted-foreground text-sm">Tambahkan pilihan seperti level pedas, es, gula, atau ukuran.</p>
+                  </div>
+                  <Button type="button" variant="outline" className="rounded-xl" onClick={addVariantGroup}>
+                    <Plus className="h-4 w-4" />
+                    Add Variant Group
+                  </Button>
+                </div>
+
+                {productForm.variants.length === 0 ? (
+                  <div className="text-muted-foreground rounded-xl border border-dashed px-4 py-6 text-center text-sm">
+                    Belum ada varian. Product akan langsung masuk cart tanpa pilihan tambahan.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {productForm.variants.map((group, groupIndex) => (
+                      <div key={`${groupIndex}-${group.name}`} className="space-y-4 rounded-2xl border bg-muted/20 p-4">
+                        <div className="flex items-center gap-3">
+                          <Input
+                            value={group.name}
+                            onChange={(e) => updateVariantGroup(groupIndex, { name: e.target.value })}
+                            placeholder="Nama group, misalnya Level Pedas"
+                            className="rounded-xl"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => removeVariantGroup(groupIndex)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          {group.options.map((option, optionIndex) => (
+                            <div key={`${groupIndex}-${optionIndex}`} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px_44px]">
+                              <Input
+                                value={option.name}
+                                onChange={(e) => updateVariantOption(groupIndex, optionIndex, 'name', e.target.value)}
+                                placeholder="Nama opsi, misalnya Pedas"
+                                className="rounded-xl"
+                              />
+                              <Input
+                                type="number"
+                                value={option.price}
+                                onChange={(e) => updateVariantOption(groupIndex, optionIndex, 'price', e.target.value)}
+                                placeholder="Harga tambahan"
+                                className="rounded-xl"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => removeVariantOption(groupIndex, optionIndex)}
+                                disabled={group.options.length === 1}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={() => addVariantOption(groupIndex)}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Option
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Button
                 className="w-full rounded-xl"
                 onClick={saveProduct}

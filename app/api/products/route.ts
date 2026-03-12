@@ -49,6 +49,7 @@ export async function POST(req: Request) {
     const cogs = formData.get('cogs') as string
     const category_id = formData.get('category_id') as string
     const unit_id = formData.get('unit_id') as string
+    const variants = formData.get('variants') as string
     const file = formData.get('image') as File | null
 
     if (!name || !price || !unit_id) {
@@ -74,7 +75,15 @@ export async function POST(req: Request) {
     const res = await pool.query(
       `INSERT INTO products (name, price, cogs, category_id, unit_id, image, variants)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, parseInt(price), parseInt(cogs) || 0, category_id ? parseInt(category_id) : null, parseInt(unit_id), imagePath, null],
+      [
+        name,
+        parseInt(price),
+        parseInt(cogs) || 0,
+        category_id ? parseInt(category_id) : null,
+        parseInt(unit_id),
+        imagePath,
+        variants ? JSON.stringify(JSON.parse(variants)) : null,
+      ],
     )
 
     return NextResponse.json(res.rows[0], { status: 201 })

@@ -20,12 +20,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const price = formData.get('price') as string
       const cogs = formData.get('cogs') as string
       const category_id = formData.get('category_id') as string
+      const variants = formData.get('variants') as string
       const file = formData.get('image') as File | null
 
       if (name !== undefined && name !== '') { values.push(name); updates.push(`name = $${values.length}`) }
       if (price !== undefined && price !== '') { values.push(parseInt(price)); updates.push(`price = $${values.length}`) }
       if (cogs !== undefined && cogs !== '') { values.push(parseInt(cogs)); updates.push(`cogs = $${values.length}`) }
       if (category_id !== undefined) { values.push(category_id ? parseInt(category_id) : null); updates.push(`category_id = $${values.length}`) }
+      if (variants !== undefined) { values.push(variants ? JSON.stringify(JSON.parse(variants)) : null); updates.push(`variants = $${values.length}`) }
 
       if (file) {
         if (!existsSync(UPLOAD_DIR)) {
