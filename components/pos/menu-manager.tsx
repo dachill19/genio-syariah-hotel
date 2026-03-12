@@ -4,6 +4,14 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { formatRupiah, cn } from '@/lib/utils'
 import {
   Plus,
@@ -46,6 +54,8 @@ export function MenuManager({ unitId }: MenuManagerProps) {
   const [activeCategory, setActiveCategory] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false)
 
   const [showProductModal, setShowProductModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -139,13 +149,17 @@ export function MenuManager({ unitId }: MenuManagerProps) {
     }
   }
 
-  const deleteProduct = async (id: number) => {
-    if (!confirm('Delete this product?')) return
+  const deleteProduct = async () => {
+    if (!productToDelete) return
+    setIsDeletingProduct(true)
     try {
-      await fetch(`/api/products/${id}`, { method: 'DELETE' })
+      await fetch(`/api/products/${productToDelete.id}`, { method: 'DELETE' })
+      setProductToDelete(null)
       fetchProducts()
     } catch (e) {
       console.error(e)
+    } finally {
+      setIsDeletingProduct(false)
     }
   }
 
@@ -198,7 +212,6 @@ export function MenuManager({ unitId }: MenuManagerProps) {
 
   return (
     <div className="bg-background flex h-screen flex-col overflow-hidden p-8">
-      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-foreground flex items-center gap-3 text-3xl font-bold">
@@ -228,7 +241,6 @@ export function MenuManager({ unitId }: MenuManagerProps) {
         </div>
       </div>
 
-      {/* Category Tabs + Search */}
       <div className="mb-4 flex items-center gap-4">
         <div className="bg-muted/40 flex flex-1 gap-1 overflow-x-auto rounded-xl p-1">
           <button
@@ -258,7 +270,6 @@ export function MenuManager({ unitId }: MenuManagerProps) {
           ))}
         </div>
 
-        {/* Action Buttons for Active Category */}
         {activeCategory !== null && (
           <div className="border-border flex shrink-0 items-center justify-center gap-2 border-r pr-4">
             <Button
@@ -296,7 +307,6 @@ export function MenuManager({ unitId }: MenuManagerProps) {
         </div>
       </div>
 
-      {/* Product Grid */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex h-64 items-center justify-center">
@@ -327,7 +337,7 @@ export function MenuManager({ unitId }: MenuManagerProps) {
                       <Pencil className="h-3.5 w-3.5 text-blue-600" />
                     </button>
                     <button
-                      onClick={() => deleteProduct(product.id)}
+                      onClick={() => setProductToDelete(product)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-md transition-colors hover:bg-red-50"
                     >
                       <Trash2 className="h-3.5 w-3.5 text-red-600" />
@@ -352,7 +362,6 @@ export function MenuManager({ unitId }: MenuManagerProps) {
         )}
       </div>
 
-      {/* Product Modal */}
       {showProductModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowProductModal(false)}>
           <div className="bg-card w-full max-w-md rounded-2xl border p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -455,7 +464,6 @@ export function MenuManager({ unitId }: MenuManagerProps) {
         </div>
       )}
 
-      {/* Category Modal */}
       {showCategoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowCategoryModal(false)}>
           <div className="bg-card w-full max-w-sm rounded-2xl border p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -489,6 +497,39 @@ export function MenuManager({ unitId }: MenuManagerProps) {
           </div>
         </div>
       )}
+
+      <Dialog open={Boolean(productToDelete)} onOpenChange={(open) => !open && setProductToDelete(null)}>
+        <DialogContent className="max-w-sm gap-0 overflow-hidden border-0 p-0 shadow-2xl">
+          <DialogHeader className="px-5 pt-5 pb-4">
+            <DialogTitle className="text-xl font-bold">Konfirmasi Hapus Produk</DialogTitle>
+            <DialogDescription className="mt-2 text-sm leading-6">
+              {productToDelete
+                ? `${productToDelete.name} akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="border-border bg-muted/30 border-t px-5 py-4 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => setProductToDelete(null)}
+              disabled={isDeletingProduct}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-xl"
+              onClick={deleteProduct}
+              disabled={isDeletingProduct}
+            >
+              {isDeletingProduct ? 'Menghapus...' : 'Ya, Hapus'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
