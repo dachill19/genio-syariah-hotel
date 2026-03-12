@@ -133,6 +133,20 @@ async function initDb(pool: Pool) {
       )
     `)
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS cancel_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        unit_id INTEGER REFERENCES units(id),
+        order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+        requested_by UUID REFERENCES users(id),
+        reason TEXT,
+        status TEXT DEFAULT 'PENDING',
+        reviewed_by UUID REFERENCES users(id),
+        reviewed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
     await client.query('COMMIT')
 
     await seedUnits(pool)

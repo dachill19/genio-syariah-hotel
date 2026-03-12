@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   UtensilsCrossed,
   History as HistoryIcon,
+  ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -126,6 +127,12 @@ export function Sidebar() {
       href: '/pos/restaurant/manager/menu',
       icon: UtensilsCrossed,
       label: 'Resto Menu',
+      hidden: !(isManager && isResto),
+    },
+    {
+      href: '/pos/restaurant/manager/cancels',
+      icon: ShieldAlert,
+      label: 'Resto Requests',
       hidden: !(isManager && isResto),
     },
   ].filter((link) => !link.hidden)

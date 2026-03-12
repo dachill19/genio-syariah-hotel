@@ -20,6 +20,9 @@ import {
   Printer,
   CheckCircle2,
   User,
+  XCircle,
+  AlertTriangle,
+  Hourglass,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { useRouter } from 'next/navigation'
@@ -101,6 +104,10 @@ export function RestoFloorPlan({ unitId, unitName }: RestoFloorPlanProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [checkoutMode, setCheckoutMode] = useState(false)
   const [processingPayment, setProcessingPayment] = useState(false)
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [cancelRequests, setCancelRequests] = useState<any[]>([])
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
@@ -115,11 +122,25 @@ export function RestoFloorPlan({ unitId, unitName }: RestoFloorPlanProps) {
     }
   }, [unitId])
 
+  const fetchCancelRequests = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/cancel-requests?unitId=${unitId}&status=PENDING`)
+      const data = await res.json()
+      setCancelRequests(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Failed to fetch cancel requests', err)
+    }
+  }, [unitId])
+
   useEffect(() => {
     fetchOrders()
-    const interval = setInterval(fetchOrders, 15000)
+    fetchCancelRequests()
+    const interval = setInterval(() => {
+      fetchOrders()
+      fetchCancelRequests()
+    }, 15000)
     return () => clearInterval(interval)
-  }, [fetchOrders])
+  }, [fetchOrders, fetchCancelRequests])
 
   const getTableData = useCallback((): TableData[] => {
     return TABLES.map((table) => {
@@ -237,6 +258,39 @@ export function RestoFloorPlan({ unitId, unitName }: RestoFloorPlanProps) {
       printWindow.document.write(billHtml)
       printWindow.document.close()
       printWindow.print()
+    }
+  }
+
+  const hasPendingCancelRequest = (orderId: string) => {
+    return cancelRequests.some((cr) => cr.order_id === orderId)
+  }
+
+  const handleRequestCancel = async () => {
+    if (!selectedTable?.order || !user) return
+    setCancelLoading(true)
+    try {
+      const res = await fetch('/api/cancel-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: selectedTable.order.id,
+          unit_id: unitId,
+          requested_by: user.id,
+          reason: cancelReason.trim() || null,
+        }),
+      })
+      if (res.ok) {
+        await fetchCancelRequests()
+        setCancelModalOpen(false)
+        setCancelReason('')
+      } else {
+        const err = await res.json()
+        alert(err.error || 'Failed to submit cancel request')
+      }
+    } catch (err) {
+      console.error('Cancel request failed', err)
+    } finally {
+      setCancelLoading(false)
     }
   }
 
@@ -664,6 +718,21 @@ export function RestoFloorPlan({ unitId, unitName }: RestoFloorPlanProps) {
                       <CheckCircle2 className="h-4 w-4" />
                       Checkout / Payment
                     </Button>
+                    {selectedTable.order && hasPendingCancelRequest(selectedTable.order.id) ? (
+                      <div className="flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-700">
+                        <Hourglass className="h-3.5 w-3.5 animate-pulse" />
+                        Cancel pending — awaiting manager approval
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="h-10 gap-1.5 rounded-xl border-red-200 text-xs text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => setCancelModalOpen(true)}
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Request Cancel Order
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -671,6 +740,61 @@ export function RestoFloorPlan({ unitId, unitName }: RestoFloorPlanProps) {
           </>
         )}
       </div>
+
+      {/* Cancel Request Modal */}
+      {cancelModalOpen && selectedTable?.order && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-card w-full max-w-md rounded-2xl border p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-foreground text-base font-bold">Request Order Cancellation</h3>
+                <p className="text-muted-foreground text-xs">
+                  Table {selectedTable.number} · {selectedTable.order.invoice_number}
+                </p>
+              </div>
+            </div>
+            <p className="text-muted-foreground mb-4 text-sm">
+              This request will be sent to the restaurant manager for approval. The order will
+              only be cancelled after the manager approves.
+            </p>
+            <div className="mb-4">
+              <label className="text-foreground mb-1.5 block text-sm font-semibold">
+                Reason for cancellation
+              </label>
+              <textarea
+                className="border-input bg-background text-foreground placeholder:text-muted-foreground w-full resize-none rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-300"
+                rows={3}
+                placeholder="Enter reason (optional)…"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl"
+                onClick={() => {
+                  setCancelModalOpen(false)
+                  setCancelReason('')
+                }}
+                disabled={cancelLoading}
+              >
+                Back
+              </Button>
+              <Button
+                className="flex-1 rounded-xl bg-red-600 text-white hover:bg-red-700"
+                onClick={handleRequestCancel}
+                disabled={cancelLoading}
+              >
+                {cancelLoading ? 'Submitting…' : 'Send Cancel Request'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
