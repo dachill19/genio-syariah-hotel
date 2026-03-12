@@ -11,9 +11,9 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const isInvoicePage = pathname?.startsWith('/report/invoice')
 
   return (
-    <div className="flex min-h-screen w-full bg-gray-100">
+    <div className="bg-muted flex min-h-screen w-full">
       {!isInvoicePage && <Sidebar />}
-      <div className={cn('flex-1 transition-all duration-300', !isInvoicePage && 'pl-20')}>
+      <div className={cn('flex-1 transition-all duration-300', !isInvoicePage && 'pl-64')}>
         {children}
       </div>
     </div>

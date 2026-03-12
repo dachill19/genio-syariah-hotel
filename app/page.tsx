@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/auth-context'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -10,7 +10,7 @@ import { Lock, User as UserIcon } from 'lucide-react'
 import Image from 'next/image'
 
 export default function LoginPage() {
-  const { login, isAuthenticated, user } = useAuth()
+  const { login, isAuthenticated, user } = useAuthStore()
   const router = useRouter()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
+    <div className="bg-muted flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-2 text-center">
           <div className="relative mx-auto mb-4 h-24 w-24 overflow-hidden rounded-full shadow-lg">

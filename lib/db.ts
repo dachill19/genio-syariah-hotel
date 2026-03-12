@@ -6,7 +6,7 @@ if (!global.pool) {
   global.pool = new Pool({
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'pos',
+    database: process.env.DB_NAME || 'genio_syariah_hotel',
     password: process.env.DB_PASSWORD || 'postgres',
     port: parseInt(process.env.DB_PORT || '5432'),
   })
@@ -23,7 +23,6 @@ async function initDb(pool: Pool) {
   try {
     await client.query('BEGIN')
 
-    // 1. Units Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS units (
         id SERIAL PRIMARY KEY,
@@ -33,7 +32,6 @@ async function initDb(pool: Pool) {
       )
     `)
 
-    // 2. Users Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -45,14 +43,23 @@ async function initDb(pool: Pool) {
       )
     `)
 
-    // 3. Products Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        unit_id INTEGER REFERENCES units(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        UNIQUE(unit_id, name)
+      )
+    `)
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         unit_id INTEGER REFERENCES units(id) ON DELETE CASCADE,
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
         name TEXT NOT NULL,
         price INTEGER NOT NULL,
-        category TEXT NOT NULL,
+        cogs INTEGER NOT NULL DEFAULT 0,
         image TEXT,
         variants TEXT,
         is_active INTEGER DEFAULT 1,
@@ -60,7 +67,6 @@ async function initDb(pool: Pool) {
       )
     `)
 
-    // 4. Orders Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
@@ -73,14 +79,14 @@ async function initDb(pool: Pool) {
         payment_method TEXT NOT NULL,
         cashier_name TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        status TEXT DEFAULT 'PENDING',
+        payment_status TEXT DEFAULT 'UNPAID',
+        kitchen_status TEXT DEFAULT 'NEW',
         table_number TEXT,
         customer_name TEXT,
         order_type TEXT
       )
     `)
 
-    // 6. Order Items Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS orders_items (
         id SERIAL PRIMARY KEY,
@@ -96,9 +102,9 @@ async function initDb(pool: Pool) {
 
     await client.query('COMMIT')
 
-    // Seed Data
     await seedUnits(pool)
     await seedUsers(pool)
+    await seedCategories(pool)
     await seedProducts(pool)
   } catch (e) {
     await client.query('ROLLBACK')
@@ -135,34 +141,51 @@ async function seedUsers(pool: Pool) {
     const restoRes = await pool.query("SELECT id FROM units WHERE type = 'RESTO' LIMIT 1")
     const restoId = restoRes.rows[0]?.id
 
-    // Password '1234' buat semua user
     const password = '1234'
 
-    // Admin (Global)
     await pool.query('INSERT INTO users (username, role, password) VALUES ($1, $2, $3)', [
       'admin',
       'ADMIN',
       password,
     ])
 
-    // Cafe Cashier (Jokowi)
     await pool.query(
       'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
       ['jokowi', 'CASHIER', password, cafeId],
     )
 
-    // Manager (Global)
     await pool.query('INSERT INTO users (username, role, password) VALUES ($1, $2, $3)', [
       'manager',
       'MANAGER',
       password,
     ])
 
-    // Resto Cashier (Windah)
     await pool.query(
       'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
       ['windah', 'CASHIER', password, restoId],
     )
+  }
+}
+
+async function seedCategories(pool: Pool) {
+  const res = await pool.query('SELECT count(*) as count FROM categories')
+  const count = parseInt(res.rows[0].count)
+  if (count === 0) {
+    const cafeRes = await pool.query("SELECT id FROM units WHERE type = 'CAFE' LIMIT 1")
+    const cafeId = cafeRes.rows[0]?.id || 1
+
+    const restoRes = await pool.query("SELECT id FROM units WHERE type = 'RESTO' LIMIT 1")
+    const restoId = restoRes.rows[0]?.id || 2
+
+    const q = 'INSERT INTO categories (unit_id, name) VALUES ($1, $2)'
+
+    await pool.query(q, [cafeId, 'Kopi'])
+    await pool.query(q, [cafeId, 'Makanan'])
+    await pool.query(q, [cafeId, 'Snack'])
+    await pool.query(q, [cafeId, 'Minuman'])
+
+    await pool.query(q, [restoId, 'Makanan'])
+    await pool.query(q, [restoId, 'Minuman'])
   }
 }
 
@@ -171,12 +194,28 @@ async function seedProducts(pool: Pool) {
   const count = parseInt(res.rows[0].count)
 
   if (count === 0) {
-    console.log('Seeding initial products...')
-    const unitRes = await pool.query("SELECT id FROM units WHERE type = 'CAFE' LIMIT 1")
-    const cafeId = unitRes.rows[0]?.id || 1
+    const cafeRes = await pool.query("SELECT id FROM units WHERE type = 'CAFE' LIMIT 1")
+    const cafeId = cafeRes.rows[0]?.id || 1
+    const restoRes = await pool.query("SELECT id FROM units WHERE type = 'RESTO' LIMIT 1")
+    const restoId = restoRes.rows[0]?.id || 2
 
-    const query =
-      'INSERT INTO products (unit_id, name, price, category, image, variants) VALUES ($1, $2, $3, $4, $5, $6)'
+    const getCatId = async (unitId: number, name: string) => {
+      const r = await pool.query('SELECT id FROM categories WHERE unit_id = $1 AND name = $2', [
+        unitId,
+        name,
+      ])
+      return r.rows[0]?.id
+    }
+
+    const cafeKopi = await getCatId(cafeId, 'Kopi')
+    const cafeMakanan = await getCatId(cafeId, 'Makanan')
+    const cafeSnack = await getCatId(cafeId, 'Snack')
+    const cafeMinuman = await getCatId(cafeId, 'Minuman')
+    const restoMakanan = await getCatId(restoId, 'Makanan')
+    const restoMinuman = await getCatId(restoId, 'Minuman')
+
+    const q =
+      'INSERT INTO products (unit_id, category_id, name, price, cogs, image, variants) VALUES ($1, $2, $3, $4, $5, $6, $7)'
 
     const variantTemperature = JSON.stringify([
       {
@@ -206,51 +245,58 @@ async function seedProducts(pool: Pool) {
       },
     ])
 
-    await pool.query(query, [
+    // --- CAFE PRODUCTS ---
+    await pool.query(q, [
       cafeId,
+      cafeKopi,
       'Kopi Susu Gula Aren',
       18000,
-      'Kopi',
+      6000,
       'https://images.unsplash.com/photo-1541167760496-1628856ab772?q=80&w=1000&auto=format&fit=crop',
       variantTemperature,
     ])
-    await pool.query(query, [
+    await pool.query(q, [
       cafeId,
+      cafeKopi,
       'Americano',
       15000,
-      'Kopi',
+      4000,
       'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?q=80&w=1000&auto=format&fit=crop',
       variantTemperature,
     ])
-    await pool.query(query, [
+    await pool.query(q, [
       cafeId,
+      cafeKopi,
       'Cappuccino',
       20000,
-      'Kopi',
+      7000,
       'https://images.unsplash.com/photo-1572442388796-11668a67e53d?q=80&w=1000&auto=format&fit=crop',
       variantTemperature,
     ])
-    await pool.query(query, [
+    await pool.query(q, [
       cafeId,
+      cafeMakanan,
       'Croissant',
       25000,
-      'Makanan',
+      10000,
       'https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=1000&auto=format&fit=crop',
       variantTopping,
     ])
-    await pool.query(query, [
+    await pool.query(q, [
       cafeId,
+      cafeSnack,
       'Kentang Goreng',
       15000,
-      'Snack',
+      5000,
       'https://images.unsplash.com/photo-1630384060421-cb20d0e0649d?q=80&w=1000&auto=format&fit=crop',
       '[]',
     ])
-    await pool.query(query, [
+    await pool.query(q, [
       cafeId,
+      cafeMinuman,
       'Es Teh Manis',
       8000,
-      'Minuman',
+      2000,
       'https://images.unsplash.com/photo-1556679343-c7306c1976bc?q=80&w=1000&auto=format&fit=crop',
       JSON.stringify([
         {
@@ -263,20 +309,14 @@ async function seedProducts(pool: Pool) {
       ]),
     ])
 
-    // Seed Restaurant Products
-    console.log('Seeding restaurant products...')
-    const restoRes = await pool.query("SELECT id FROM units WHERE type = 'RESTO' LIMIT 1")
-    const restoId = restoRes.rows[0]?.id || 2
-
-    const restoQuery =
-      'INSERT INTO products (unit_id, name, price, category, image, variants) VALUES ($1, $2, $3, $4, $5, $6)'
-
-    await pool.query(restoQuery, [
+    // --- RESTO PRODUCTS ---
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Nasi Goreng Spesial',
       35000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1603133872878-684f10d6a1f8?q=80&w=1000&auto=format&fit=crop',
+      12000,
+      'https://loremflickr.com/800/600/friedrice,food/all',
       JSON.stringify([
         {
           name: 'Pedas',
@@ -288,52 +328,58 @@ async function seedProducts(pool: Pool) {
         },
       ]),
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Ayam Bakar Madu',
       45000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1626082927389-6cd097cdc6a0?q=80&w=1000&auto=format&fit=crop',
+      18000,
+      'https://loremflickr.com/800/600/grilledchicken,food/all',
       '[]',
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMinuman,
       'Es Jeruk',
       12000,
-      'Minuman',
-      'https://images.unsplash.com/photo-1613478223719-2ab802602423?q=80&w=1000&auto=format&fit=crop',
+      3000,
+      'https://loremflickr.com/800/600/orangejuice,drink/all',
       '[]',
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Sate Ayam',
       30000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1520072959219-c595dc3f3bc4?q=80&w=1000&auto=format&fit=crop',
+      12000,
+      'https://loremflickr.com/800/600/chickensatay,food/all',
       '[]',
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Sop Buntut',
       65000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1549203438-a7696aed470e?q=80&w=1000&auto=format&fit=crop',
+      25000,
+      'https://loremflickr.com/800/600/beefsoup,food/all',
       '[]',
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMinuman,
       'Juice Alpukat',
       18000,
-      'Minuman',
-      'https://images.unsplash.com/photo-1601039641847-7857b994d704?q=80&w=1000&auto=format&fit=crop',
+      5000,
+      'https://loremflickr.com/800/600/avocadosmoothie,drink/all',
       '[]',
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Nasi Goreng Seafood',
       40000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=1000&auto=format&fit=crop',
+      15000,
+      'https://loremflickr.com/800/600/seafoodrice,food/all',
       JSON.stringify([
         {
           name: 'Pedas',
@@ -345,12 +391,13 @@ async function seedProducts(pool: Pool) {
         },
       ]),
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Mie Goreng Jawa',
       32000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?q=80&w=1000&auto=format&fit=crop',
+      10000,
+      'https://loremflickr.com/800/600/friednoodles,food/all',
       JSON.stringify([
         {
           name: 'Pedas',
@@ -362,12 +409,13 @@ async function seedProducts(pool: Pool) {
         },
       ]),
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Ayam Penyet',
       28000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1649912061986-e793910c71cc?q=80&w=1000&auto=format&fit=crop',
+      10000,
+      'https://loremflickr.com/800/600/friedchicken,spicy/all',
       JSON.stringify([
         {
           name: 'Sambal',
@@ -379,20 +427,22 @@ async function seedProducts(pool: Pool) {
         },
       ]),
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMakanan,
       'Capcay Seafood',
       35000,
-      'Makanan',
-      'https://images.unsplash.com/photo-1585032226651-759b368d7246?q=80&w=1000&auto=format&fit=crop',
+      13000,
+      'https://loremflickr.com/800/600/stirfryvegetables,food/all',
       '[]',
     ])
-    await pool.query(restoQuery, [
+    await pool.query(q, [
       restoId,
+      restoMinuman,
       'Es Teh Manis',
       8000,
-      'Minuman',
-      'https://images.unsplash.com/photo-1556679343-c7306c1976bc?q=80&w=1000&auto=format&fit=crop',
+      2000,
+      'https://loremflickr.com/800/600/icedtea,drink/all',
       '[]',
     ])
   }

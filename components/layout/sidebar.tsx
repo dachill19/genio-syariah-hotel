@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   Coffee,
   ShoppingCart,
@@ -11,17 +11,24 @@ import {
   User as UserIcon,
   LogOut,
   Utensils,
+  ClipboardList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/context/auth-context'
+import { useAuthStore } from '@/stores/auth-store'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import Image from 'next/image'
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const router = useRouter()
+  const { user, logout } = useAuthStore()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
+
+  const handleLogout = () => {
+    logout()
+    router.push('/')
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -48,6 +55,12 @@ export function Sidebar() {
       hidden: isResto && !isAdminOrManager,
     },
     {
+      href: '/pos/cafe/orders',
+      icon: ClipboardList,
+      label: 'Cafe Orders',
+      hidden: isResto && !isAdminOrManager,
+    },
+    {
       href: '/pos/cafe/report',
       icon: FileText,
       label: 'Cafe Report',
@@ -58,7 +71,13 @@ export function Sidebar() {
     {
       href: '/pos/restaurant',
       icon: Utensils,
-      label: 'Restaurant POS',
+      label: 'Resto POS',
+      hidden: isCafe && !isAdminOrManager,
+    },
+    {
+      href: '/pos/restaurant/orders',
+      icon: ClipboardList,
+      label: 'Resto Orders',
       hidden: isCafe && !isAdminOrManager,
     },
     {
@@ -70,13 +89,18 @@ export function Sidebar() {
   ].filter((link) => !link.hidden)
 
   return (
-    <div className="bg-card fixed top-0 left-0 z-50 flex h-screen w-20 flex-col items-center justify-between border-r py-6 shadow-sm">
-      <div className="flex w-full flex-col items-center space-y-6">
-        <div className="relative h-12 w-12 overflow-hidden rounded-full shadow-lg">
-          <Image src="/img/logo.png" alt="Logo" fill className="object-cover" />
+    <div className="bg-card fixed top-0 left-0 z-50 flex h-screen w-64 flex-col justify-between border-r shadow-sm">
+      <div className="flex w-full flex-col space-y-8 px-6 py-6">
+        <div className="flex items-center gap-3 px-2">
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full shadow-md">
+            <Image src="/img/logo.png" alt="Logo" fill className="object-cover" />
+          </div>
+          <span className="text-foreground text-xl font-black tracking-tight">
+            GENIO <span className="text-primary">POS</span>
+          </span>
         </div>
 
-        <nav className="flex w-full flex-col items-center space-y-4">
+        <nav className="flex w-full flex-col space-y-2">
           {links.map((link) => {
             const isActive = pathname === link.href
             return (
@@ -84,55 +108,53 @@ export function Sidebar() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200',
+                  'flex h-14 w-full items-center gap-4 rounded-full px-5 transition-all duration-200',
                   isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    ? 'bg-primary text-primary-foreground font-bold shadow-md'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground font-medium',
                 )}
                 title={link.label}
               >
-                <link.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                <link.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-sm">{link.label}</span>
               </Link>
             )
           })}
         </nav>
       </div>
 
-      <div className="relative" ref={profileRef}>
-        <button
-          onClick={() => setIsProfileOpen(!isProfileOpen)}
-          className="bg-primary/10 text-primary hover:bg-primary/20 flex h-10 w-10 items-center justify-center rounded-full font-bold shadow-sm transition-colors"
-          title="User Profile"
-        >
-          {user?.username ? (
-            <Avatar className="h-full w-full bg-transparent">
-              <AvatarFallback className="text-primary bg-transparent text-lg font-bold">
-                {user.username.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          ) : (
-            <UserIcon size={20} />
-          )}
-        </button>
-
-        {isProfileOpen && (
-          <div className="bg-card text-card-foreground animate-in fade-in slide-in-from-left-5 absolute bottom-0 left-14 z-50 mb-2 w-48 rounded-xl border p-4 shadow-xl duration-200">
-            <div className="flex flex-col gap-3">
-              <div className="space-y-1">
-                <h4 className="text-sm leading-none font-semibold">{user?.username || 'Guest'}</h4>
-                <p className="text-muted-foreground text-xs">{user?.role || 'Guest User'}</p>
-              </div>
-              <div className="bg-border h-px" />
-              <button
-                onClick={logout}
-                className="hover:bg-destructive/10 text-destructive flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
-              >
-                <LogOut size={16} />
-                Logout
-              </button>
+      <div className="relative px-6 py-6 pb-8">
+        <div className="bg-card border-muted flex w-full items-center justify-between rounded-full border p-2 shadow-sm">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="bg-primary/20 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold">
+              {user?.username ? (
+                <Avatar className="h-full w-full bg-transparent">
+                  <AvatarFallback className="text-primary bg-transparent text-sm font-bold">
+                    {user.username.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <UserIcon size={18} />
+              )}
+            </div>
+            <div className="flex flex-col items-start overflow-hidden">
+              <span className="text-foreground truncate text-sm font-bold">
+                {user?.username || 'Guest'}
+              </span>
+              <span className="text-muted-foreground truncate text-xs font-medium uppercase">
+                {user?.role || 'Guest User'}
+              </span>
             </div>
           </div>
-        )}
+
+          <button
+            onClick={handleLogout}
+            className="text-destructive hover:bg-destructive/10 mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors"
+            title="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
       </div>
     </div>
   )

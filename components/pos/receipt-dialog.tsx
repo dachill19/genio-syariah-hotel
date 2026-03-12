@@ -53,9 +53,9 @@ export function ReceiptDialog({ order, isOpen, onClose, onNewOrder }: ReceiptDia
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm overflow-hidden border-none bg-white p-0 shadow-2xl">
+      <DialogContent className="bg-card max-w-sm overflow-hidden border-none p-0 shadow-2xl">
         <DialogTitle className="sr-only">Receipt</DialogTitle>
-        <div className="bg-green-500 p-8 text-center text-white">
+        <div className="bg-primary p-8 text-center text-white">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
             <Check className="h-8 w-8" />
           </div>
@@ -63,11 +63,11 @@ export function ReceiptDialog({ order, isOpen, onClose, onNewOrder }: ReceiptDia
           <p className="mt-1 font-mono opacity-90">{order.invoice_number}</p>
         </div>
 
-        <div className="flex-1 bg-gray-50 p-6">
-          <div className="mb-6 space-y-3 rounded-xl border border-gray-100 bg-white p-4 text-sm shadow-sm">
+        <div className="bg-muted/50 flex-1 p-6">
+          <div className="bg-card border-border mb-6 space-y-3 rounded-xl border p-4 text-sm shadow-sm">
             <div className="flex justify-between border-b pb-2">
-              <span className="text-gray-500">Date</span>
-              <span className="font-medium text-gray-900">
+              <span className="text-muted-foreground">Date</span>
+              <span className="text-foreground font-medium">
                 {new Date(order.created_at).toLocaleString('id-ID', {
                   dateStyle: 'medium',
                   timeStyle: 'short',
@@ -76,32 +76,32 @@ export function ReceiptDialog({ order, isOpen, onClose, onNewOrder }: ReceiptDia
             </div>
 
             <div className="flex justify-between">
-              <span className="text-gray-500">Table</span>
-              <span className="font-bold text-gray-900">{order.table_number || '-'}</span>
+              <span className="text-muted-foreground">Table</span>
+              <span className="text-foreground font-bold">{order.table_number || '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Customer</span>
-              <span className="font-bold text-gray-900">{order.customer_name || '-'}</span>
+              <span className="text-muted-foreground">Customer</span>
+              <span className="text-foreground font-bold">{order.customer_name || '-'}</span>
             </div>
             <div className="flex justify-between border-b pb-2">
-              <span className="text-gray-500">Type</span>
-              <span className="font-bold text-gray-900">{order.order_type || '-'}</span>
+              <span className="text-muted-foreground">Type</span>
+              <span className="text-foreground font-bold">{order.order_type || '-'}</span>
             </div>
 
             <div className="flex justify-between pt-2">
-              <span className="text-gray-500">Method</span>
-              <span className="font-bold text-gray-900">{order.payment_method}</span>
+              <span className="text-muted-foreground">Method</span>
+              <span className="text-foreground font-bold">{order.payment_method}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Cashier</span>
-              <span className="font-bold text-gray-900">{order.cashier_name || 'System'}</span>
+              <span className="text-muted-foreground">Cashier</span>
+              <span className="text-foreground font-bold">{order.cashier_name || 'System'}</span>
             </div>
             <div className="flex justify-between border-t pt-2 text-base">
-              <span className="font-bold text-gray-700">Tax</span>
-              <span className="text-gray-900">{formatRupiah(order.tax_amount)}</span>
+              <span className="text-foreground/80 font-bold">Tax</span>
+              <span className="text-foreground">{formatRupiah(order.tax_amount)}</span>
             </div>
             <div className="flex justify-between pt-1 text-base">
-              <span className="font-bold text-gray-700">Total</span>
+              <span className="text-foreground/80 font-bold">Total</span>
               <span className="text-primary font-bold">{formatRupiah(order.grand_total)}</span>
             </div>
           </div>
@@ -116,7 +116,7 @@ export function ReceiptDialog({ order, isOpen, onClose, onNewOrder }: ReceiptDia
           </div>
         </div>
 
-        <div className="fixed top-0 left-[-9999px]">
+        <div className="fixed top-0 -left-[9999px]">
           <div ref={invoiceRef} className="w-[80mm] bg-white text-black">
             <InvoiceTemplate order={order} />
           </div>

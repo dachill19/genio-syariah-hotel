@@ -50,8 +50,8 @@ export function VariantDialog({ product, isOpen, onClose, onConfirm }: VariantDi
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90vh] max-w-md flex-col gap-0 overflow-hidden bg-white p-0">
-        <DialogHeader className="border-b bg-gray-50/50 p-6">
+      <DialogContent className="bg-card flex max-h-[90vh] max-w-md flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="bg-muted/50 border-b p-6">
           <DialogTitle>{product.name}</DialogTitle>
           <DialogDescription>Customize your order options</DialogDescription>
         </DialogHeader>
@@ -59,7 +59,7 @@ export function VariantDialog({ product, isOpen, onClose, onConfirm }: VariantDi
         <div className="flex-1 space-y-6 overflow-y-auto p-6">
           {product.variants?.map((group) => (
             <div key={group.name} className="space-y-3">
-              <h4 className="text-sm font-semibold tracking-wider text-gray-900 uppercase">
+              <h4 className="text-foreground text-sm font-semibold tracking-wider uppercase">
                 {group.name}
               </h4>
               <div className="grid grid-cols-2 gap-3">
@@ -73,7 +73,7 @@ export function VariantDialog({ product, isOpen, onClose, onConfirm }: VariantDi
                         'flex cursor-pointer items-center justify-between rounded-lg border p-3 text-sm transition-all',
                         isSelected
                           ? 'border-primary bg-primary/5 text-primary ring-primary ring-1'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
+                          : 'border-border hover:border-muted-foreground/30 hover:bg-muted/50',
                       )}
                     >
                       <div className="flex flex-col">
@@ -93,7 +93,7 @@ export function VariantDialog({ product, isOpen, onClose, onConfirm }: VariantDi
           ))}
         </div>
 
-        <DialogFooter className="border-t bg-gray-50/50 p-4">
+        <DialogFooter className="bg-muted/50 border-t p-4">
           <Button
             className="h-12 w-full justify-between px-6 text-base"
             onClick={() => onConfirm(product, selections, finalPrice)}

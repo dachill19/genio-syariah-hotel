@@ -8,9 +8,10 @@ export async function GET(req: Request) {
   try {
     const pool = await getDb()
     let query = `
-      SELECT p.*, u.type as unit_type 
+      SELECT p.*, c.name as category, u.type as unit_type 
       FROM products p
       JOIN units u ON p.unit_id = u.id
+      LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.is_active = 1
     `
     const params: any[] = []

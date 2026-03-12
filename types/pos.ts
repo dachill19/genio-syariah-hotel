@@ -38,7 +38,8 @@ export interface CartItem extends Product {
   totalPrice: number
 }
 
-export type OrderStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'CANCELLED'
+export type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED' | 'VOID'
+export type KitchenStatus = 'NEW' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELED'
 
 export type OrderType = 'Dine in' | 'Take Away'
 
@@ -54,7 +55,8 @@ export interface Order {
   payment_method: string
   items: CartItem[]
   cashier_name?: string
-  status?: OrderStatus
+  payment_status?: PaymentStatus
+  kitchen_status?: KitchenStatus
   table_number?: string
   customer_name?: string
   order_type?: OrderType

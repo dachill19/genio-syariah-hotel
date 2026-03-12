@@ -5,7 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatRupiah, cn } from '@/lib/utils'
-import { FileText, TrendingUp, CreditCard, Banknote, Download, Printer } from 'lucide-react'
+import {
+  FileText,
+  TrendingUp,
+  PiggyBank,
+  Target,
+  Printer,
+  BarChart3,
+  Banknote,
+  QrCode,
+  CreditCard,
+  Receipt,
+  Calendar,
+} from 'lucide-react'
 import { Order } from '@/types/pos'
 import { InvoiceModal } from '@/components/pos/invoice-modal'
 
@@ -14,9 +26,47 @@ interface ReportPageProps {
   unitName: string
 }
 
+const getPaymentBadgeConfig = (method: string) => {
+  switch (method) {
+    case 'CASH':
+      return {
+        bg: 'bg-emerald-100',
+        text: 'text-emerald-700',
+        bar: 'bg-emerald-400',
+        icon: Banknote,
+      }
+    case 'QRIS':
+      return { bg: 'bg-blue-100', text: 'text-blue-700', bar: 'bg-blue-400', icon: QrCode }
+    case 'CARD':
+      return {
+        bg: 'bg-violet-100',
+        text: 'text-violet-700',
+        bar: 'bg-violet-400',
+        icon: CreditCard,
+      }
+    default:
+      return { bg: 'bg-muted', text: 'text-muted-foreground', bar: 'bg-muted-foreground/60', icon: Banknote }
+  }
+}
+
+const getPaymentStatusStyle = (status: string) => {
+  switch (status) {
+    case 'PAID':
+      return 'bg-emerald-100 text-emerald-700'
+    case 'UNPAID':
+      return 'bg-amber-100 text-amber-700'
+    case 'REFUNDED':
+      return 'bg-blue-100 text-blue-700'
+    case 'VOID':
+      return 'bg-red-100 text-red-700'
+    default:
+      return 'bg-muted text-muted-foreground'
+  }
+}
+
 export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
   const [summary, setSummary] = useState<any>(null)
-  const [transactions, setTransactions] = useState<Order[]>([])
+  const [transactions, setTransactions] = useState<any[]>([])
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -39,133 +89,297 @@ export function ReportDashboard({ unitId, unitName }: ReportPageProps) {
       .finally(() => setLoading(false))
   }, [date, unitId])
 
-  const handleExport = () => {
-    window.location.href = `/api/reports/export?date=${date}&unitId=${unitId}`
-  }
 
   const totalSales = summary?.total_sales || 0
   const totalTransactions = summary?.total_transactions || 0
-  const cashCount = summary?.cash_count || 0
-  const qrisCount = summary?.qris_count || 0
+  const totalCogs = summary?.total_cogs || 0
+  const grossProfit = totalSales - totalCogs
+  const aov = totalTransactions > 0 ? Math.round(totalSales / totalTransactions) : 0
+  const profitMargin = totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : '0'
+
+  const paymentBreakdown = transactions.reduce(
+    (acc: Record<string, { count: number; total: number }>, order: any) => {
+      const method = order.payment_method || 'OTHER'
+      if (!acc[method]) acc[method] = { count: 0, total: 0 }
+      acc[method].count += 1
+      acc[method].total += order.grand_total || 0
+      return acc
+    },
+    {
+      CASH: { count: 0, total: 0 },
+      QRIS: { count: 0, total: 0 },
+      CARD: { count: 0, total: 0 },
+    } as Record<string, { count: number; total: number }>,
+  )
 
   const summaryCards = [
     {
       title: 'Total Sales',
       value: formatRupiah(totalSales),
+      subtitle: `${totalTransactions} orders today`,
       icon: TrendingUp,
       color: 'text-primary',
+      bgAccent: 'bg-primary/10',
+      gradient: 'from-emerald-50 to-green-50/30',
     },
     {
       title: 'Total Transactions',
       value: totalTransactions,
-      icon: FileText,
-      color: 'text-muted-foreground',
+      subtitle: `Avg ${formatRupiah(aov)} / order`,
+      icon: Receipt,
+      color: 'text-blue-600',
+      bgAccent: 'bg-blue-50',
+      gradient: 'from-blue-50 to-indigo-50/30',
     },
-    { title: 'Cash Payments', value: cashCount, icon: Banknote, color: 'text-success' },
-    { title: 'QRIS Payments', value: qrisCount, icon: CreditCard, color: 'text-primary' },
+    {
+      title: 'Gross Profit',
+      value: formatRupiah(grossProfit),
+      subtitle: `${profitMargin}% margin`,
+      icon: PiggyBank,
+      color: 'text-emerald-600',
+      bgAccent: 'bg-emerald-50',
+      gradient: 'from-emerald-50 to-teal-50/30',
+    },
+    {
+      title: 'Avg. Order Value',
+      value: formatRupiah(aov),
+      subtitle: totalTransactions > 0 ? `From ${totalTransactions} orders` : 'No orders yet',
+      icon: Target,
+      color: 'text-violet-600',
+      bgAccent: 'bg-violet-50',
+      gradient: 'from-violet-50 to-purple-50/30',
+    },
   ]
 
   return (
     <div className="bg-background flex h-screen flex-col overflow-hidden p-8">
+      {/* Header */}
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-foreground flex items-center gap-3 text-3xl font-bold">
-          <FileText className="text-primary" size={32} />
-          {unitName} Sales Report
-        </h1>
+        <div>
+          <h1 className="text-foreground flex items-center gap-3 text-3xl font-bold">
+            <div className="bg-primary/10 flex h-11 w-11 items-center justify-center rounded-xl">
+              <BarChart3 className="text-primary h-6 w-6" />
+            </div>
+            {unitName} Sales Report
+          </h1>
+          <p className="text-muted-foreground mt-1.5 ml-14 text-sm">
+            Daily performance overview and transaction history
+          </p>
+        </div>
 
         <div className="flex gap-3">
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="bg-background text-foreground w-auto"
-          />
-          <Button onClick={handleExport} className="gap-2" variant="outline">
-            <Download size={16} /> Export Excel
-          </Button>
+          <div className="relative">
+            <Calendar className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="bg-card w-auto rounded-xl pl-9"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {summaryCards.map((card) => (
-          <Card key={card.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-muted-foreground text-sm font-medium">
-                {card.title}
-              </CardTitle>
-              <card.icon className={cn('h-4 w-4', card.color)} />
-            </CardHeader>
-            <CardContent>
-              <div className={cn('text-2xl font-bold', card.color)}>{card.value}</div>
-            </CardContent>
+      {/* KPI Cards */}
+      <div className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {summaryCards.map((card, index) => (
+          <Card
+            key={card.title}
+            className="animate-slide-in-card overflow-hidden border-none shadow-sm"
+            style={{ animationDelay: `${index * 80}ms` }}
+          >
+            <div className={cn('bg-linear-to-br', card.gradient)}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+                  {card.title}
+                </CardTitle>
+                <div
+                  className={cn(
+                    'flex h-9 w-9 items-center justify-center rounded-xl shadow-sm',
+                    card.bgAccent,
+                  )}
+                >
+                  <card.icon className={cn('h-4.5 w-4.5', card.color)} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className={cn('text-2xl font-bold tracking-tight', card.color)}>
+                  {card.value}
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs">{card.subtitle}</p>
+              </CardContent>
+            </div>
           </Card>
         ))}
       </div>
 
-      <div className="bg-card flex flex-1 flex-col overflow-hidden rounded-xl border shadow-sm">
-        <div className="bg-muted/50 text-muted-foreground border-b p-4 text-sm font-medium">
-          Recent Transactions
+      {/* Payment Breakdown */}
+      {Object.keys(paymentBreakdown).length > 0 && (
+        <div className="mb-6 grid grid-cols-3 gap-4">
+          {Object.entries(paymentBreakdown)
+            .filter(([method]) => method !== 'PENDING')
+            .map(([method, data]) => {
+            const config = getPaymentBadgeConfig(method)
+            const PaymentIcon = config.icon
+            const percentage =
+              totalTransactions > 0 ? ((data.count / totalTransactions) * 100).toFixed(0) : '0'
+            return (
+              <div
+                key={method}
+                className="bg-card flex items-center gap-4 rounded-xl border p-4 shadow-sm"
+              >
+                <div
+                  className={cn('flex h-10 w-10 items-center justify-center rounded-xl', config.bg)}
+                >
+                  <PaymentIcon className={cn('h-5 w-5', config.text)} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">{method}</span>
+                    <span className="text-muted-foreground text-xs">{percentage}%</span>
+                  </div>
+                  <div className="bg-muted mt-1.5 h-1.5 w-full overflow-hidden rounded-full">
+                    <div
+                      className={cn('h-full rounded-full transition-all duration-500', config.bar)}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <div className="text-muted-foreground mt-1 flex justify-between text-[11px]">
+                    <span>
+                      {data.count} {data.count === 1 ? 'transaction' : 'transactions'}
+                    </span>
+                    <span className="font-medium">{formatRupiah(data.total)}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Transactions Table */}
+      <div className="bg-card flex flex-1 flex-col overflow-hidden rounded-2xl border shadow-sm">
+        <div className="flex items-center justify-between border-b px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <FileText className="text-muted-foreground h-4 w-4" />
+            <span className="text-foreground text-sm font-semibold">Recent Transactions</span>
+          </div>
+          <span className="bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-xs font-medium">
+            {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
+          </span>
         </div>
         <div className="custom-scrollbar flex-1 overflow-y-auto">
           {loading ? (
-            <div className="text-muted-foreground flex h-full items-center justify-center">
+            <div className="text-muted-foreground flex h-full items-center justify-center gap-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
               Loading...
             </div>
           ) : (
             <table className="w-full text-left text-sm">
-              <thead className="bg-card sticky top-0 z-10 shadow-sm">
+              <thead className="bg-muted/30 sticky top-0 z-10">
                 <tr className="border-b">
-                  <th className="text-muted-foreground p-4 font-semibold">Time</th>
-                  <th className="text-muted-foreground p-4 font-semibold">Invoice</th>
-                  <th className="text-muted-foreground p-4 font-semibold">Payment</th>
-                  <th className="text-muted-foreground p-4 font-semibold">Status</th>
-                  <th className="text-muted-foreground p-4 text-right font-semibold">Total</th>
-                  <th className="text-muted-foreground p-4 text-center font-semibold">Action</th>
+                  <th className="text-muted-foreground p-4 text-xs font-semibold tracking-wider uppercase">
+                    Time
+                  </th>
+                  <th className="text-muted-foreground p-4 text-xs font-semibold tracking-wider uppercase">
+                    Invoice
+                  </th>
+                  <th className="text-muted-foreground p-4 text-xs font-semibold tracking-wider uppercase">
+                    Payment
+                  </th>
+                  <th className="text-muted-foreground p-4 text-xs font-semibold tracking-wider uppercase">
+                    Status
+                  </th>
+                  <th className="text-muted-foreground p-4 text-right text-xs font-semibold tracking-wider uppercase">
+                    Total
+                  </th>
+                  <th className="text-muted-foreground p-4 text-center text-xs font-semibold tracking-wider uppercase">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className="border-border divide-y">
-                {transactions.map((order) => (
-                  <tr key={order.invoice_number} className="hover:bg-muted/50 transition-colors">
-                    <td className="text-muted-foreground p-4">
-                      {new Date(order.created_at).toLocaleTimeString()}
-                    </td>
-                    <td className="text-foreground p-4 font-medium">{order.invoice_number}</td>
-                    <td className="p-4">
-                      <span
-                        className={cn(
-                          'rounded-md px-2 py-1 text-xs font-bold',
-                          order.payment_method === 'CASH'
-                            ? 'bg-success/20 text-success'
-                            : 'bg-primary/20 text-primary',
+                {transactions.map((order, index) => {
+                  const itemCount = parseInt(order.item_count || '0')
+                  const paymentConfig = getPaymentBadgeConfig(order.payment_method)
+                  const PaymentIcon = paymentConfig.icon
+                  return (
+                    <tr
+                      key={order.invoice_number}
+                      className="hover:bg-muted/30 animate-fade-in-up transition-colors"
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      <td className="p-4">
+                        <span className="bg-muted text-muted-foreground rounded-md px-2 py-1 text-xs font-medium tabular-nums">
+                          {new Date(order.created_at).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="text-foreground text-sm font-semibold">
+                          {order.invoice_number}
+                        </div>
+                        {itemCount > 0 && (
+                          <div className="text-muted-foreground mt-0.5 text-[11px]">
+                            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                          </div>
                         )}
-                      >
-                        {order.payment_method}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className="bg-muted text-muted-foreground rounded px-2 py-1 text-xs font-semibold">
-                        {order.status || 'COMPLETED'}
-                      </span>
-                    </td>
-                    <td className="text-foreground p-4 text-right font-bold">
-                      {formatRupiah(order.grand_total)}
-                    </td>
-                    <td className="p-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Print Invoice"
-                        onClick={() => handlePrint(order)}
-                      >
-                        <Printer className="text-muted-foreground hover:text-foreground h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold',
+                            paymentConfig.bg,
+                            paymentConfig.text,
+                          )}
+                        >
+                          <PaymentIcon className="h-3 w-3" />
+                          {order.payment_method}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={cn(
+                            'rounded-lg px-2.5 py-1 text-xs font-semibold',
+                            getPaymentStatusStyle(order.payment_status || 'PAID'),
+                          )}
+                        >
+                          {order.payment_status || 'PAID'}
+                        </span>
+                      </td>
+                      <td className="text-foreground p-4 text-right text-sm font-bold tabular-nums">
+                        {formatRupiah(order.grand_total)}
+                      </td>
+                      <td className="p-4 text-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Print Invoice"
+                          onClick={() => handlePrint(order)}
+                          className="h-8 w-8 rounded-lg"
+                        >
+                          <Printer className="text-muted-foreground hover:text-foreground h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
                 {transactions.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-muted-foreground p-12 text-center">
-                      No transactions found for this date.
+                    <td colSpan={6} className="p-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="bg-muted/50 flex h-16 w-16 items-center justify-center rounded-2xl">
+                          <Receipt className="text-muted-foreground h-8 w-8" />
+                        </div>
+                        <div>
+                          <p className="text-foreground font-semibold">No transactions found</p>
+                          <p className="text-muted-foreground mt-0.5 text-sm">
+                            Try selecting a different date
+                          </p>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 )}

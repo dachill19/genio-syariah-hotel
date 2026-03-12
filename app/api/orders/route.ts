@@ -3,7 +3,10 @@ import { getDb } from '@/lib/db'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const status = searchParams.get('status')
+  const kitchenStatus = searchParams.get('kitchenStatus')
+  const paymentStatus = searchParams.get('paymentStatus')
+  const unitId = searchParams.get('unitId')
+  const activeKitchen = searchParams.get('activeKitchen')
 
   try {
     const pool = await getDb()
@@ -26,13 +29,30 @@ export async function GET(req: Request) {
       LEFT JOIN orders_items oi ON o.id = oi.order_id
       LEFT JOIN users u ON o.user_id = u.id
     `
-    let params: any[] = []
+    const params: any[] = []
+    const conditions: string[] = []
 
-    if (status === 'active') {
-      query += " WHERE o.status IN ('PENDING', 'PROCESSING', 'READY')"
-    } else if (status) {
-      query += ' WHERE o.status = $1'
-      params = [status]
+    if (activeKitchen === 'true') {
+      conditions.push("o.kitchen_status IN ('NEW', 'PREPARING', 'READY')")
+    }
+
+    if (kitchenStatus) {
+      params.push(kitchenStatus)
+      conditions.push(`o.kitchen_status = $${params.length}`)
+    }
+
+    if (paymentStatus) {
+      params.push(paymentStatus)
+      conditions.push(`o.payment_status = $${params.length}`)
+    }
+
+    if (unitId) {
+      params.push(unitId)
+      conditions.push(`o.unit_id = $${params.length}`)
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ')
     }
 
     query += ' GROUP BY o.id, u.username ORDER BY o.created_at DESC'
@@ -86,9 +106,9 @@ export async function POST(req: Request) {
       const insertOrderText = `
             INSERT INTO orders (
               invoice_number, subtotal, tax_amount, grand_total, payment_method, 
-              status, table_number, customer_name, order_type, unit_id, user_id, cashier_name
+              payment_status, kitchen_status, table_number, customer_name, order_type, unit_id, user_id, cashier_name
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING id
         `
 
@@ -98,7 +118,8 @@ export async function POST(req: Request) {
         tax_amount || 0,
         grand_total,
         payment_method,
-        'PENDING',
+        body.payment_status || 'PAID',
+        'NEW',
         table_number || '',
         customer_name || '',
         order_type || 'Dine in',

@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   try {
     const pool = await getDb()
 
-    let whereClause = "WHERE DATE(orders.created_at) = $1 AND orders.status != 'CANCELLED'"
+    let whereClause = "WHERE DATE(orders.created_at) = $1 AND orders.payment_status != 'VOID'"
     const params = [date]
 
     if (unitId) {
@@ -33,7 +33,8 @@ export async function GET(req: Request) {
                  )
                ) FILTER (WHERE oi.id IS NOT NULL), 
                '[]'
-             ) as items 
+             ) as items,
+             COALESCE(SUM(oi.qty), 0) as item_count
       FROM orders 
       LEFT JOIN orders_items oi ON orders.id = oi.order_id
       ${whereClause}
@@ -43,12 +44,17 @@ export async function GET(req: Request) {
 
     const summaryQuery = `
       SELECT 
-        COALESCE(SUM(grand_total), 0) as total_sales,
+        COALESCE(SUM(o.grand_total), 0) as total_sales,
         COUNT(*) as total_transactions,
-        COUNT(CASE WHEN payment_method = 'CASH' THEN 1 END) as cash_count,
-        COUNT(CASE WHEN payment_method = 'QRIS' THEN 1 END) as qris_count
-      FROM orders
-      ${whereClause}
+        COALESCE(SUM(sub.total_cogs), 0) as total_cogs
+      FROM orders o
+      LEFT JOIN (
+        SELECT oi.order_id, SUM(COALESCE(p.cogs, 0) * oi.qty) as total_cogs
+        FROM orders_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        GROUP BY oi.order_id
+      ) sub ON o.id = sub.order_id
+      ${whereClause.replace(/orders\./g, 'o.')}
     `
 
     const [transactionsRes, summaryRes] = await Promise.all([
@@ -63,8 +69,7 @@ export async function GET(req: Request) {
       summary: {
         total_sales: parseInt(summary?.total_sales || '0'),
         total_transactions: parseInt(summary?.total_transactions || '0'),
-        cash_count: parseInt(summary?.cash_count || '0'),
-        qris_count: parseInt(summary?.qris_count || '0'),
+        total_cogs: parseInt(summary?.total_cogs || '0'),
       },
       transactions: transactions,
     })

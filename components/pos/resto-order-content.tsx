@@ -4,20 +4,25 @@ import { useState, useEffect, useRef } from 'react'
 import { ProductGrid } from '@/components/pos/product-grid'
 import { CartSidebar } from '@/components/pos/cart-sidebar'
 import { VariantDialog } from '@/components/pos/variant-dialog'
-import { ReceiptDialog } from '@/components/pos/receipt-dialog'
 import { Product, CartItem, VariantOption, Order, OrderType } from '@/types/pos'
 import { useOrderStore } from '@/stores/order-store'
 import { useAuthStore } from '@/stores/auth-store'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft } from 'lucide-react'
 
-interface POSDashboardProps {
+interface RestoOrderContentProps {
   unitId: number
   unitName: string
 }
 
-export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
+export function RestoOrderContent({ unitId, unitName }: RestoOrderContentProps) {
   const { user, isAuthenticated } = useAuthStore()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const tableFromUrl = searchParams.get('table') || ''
+  const orderIdFromUrl = searchParams.get('orderId')
 
   const { addOrder } = useOrderStore()
   const [products, setProducts] = useState<Product[]>([])
@@ -26,10 +31,8 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isVariantOpen, setIsVariantOpen] = useState(false)
-  const [isReceiptOpen, setIsReceiptOpen] = useState(false)
-  const [lastOrder, setLastOrder] = useState<Order | null>(null)
 
-  const [tableNumber, setTableNumber] = useState('')
+  const [tableNumber, setTableNumber] = useState(tableFromUrl)
   const [customerName, setCustomerName] = useState('')
   const [showValidation, setShowValidation] = useState(false)
 
@@ -60,6 +63,32 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
     }
     initData()
   }, [unitId])
+
+  useEffect(() => {
+    if (orderIdFromUrl) {
+      fetch(`/api/orders/${orderIdFromUrl}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.customer_name) {
+            setCustomerName(data.customer_name)
+          }
+          if (data && data.items && Array.isArray(data.items)) {
+            const existingItems: CartItem[] = data.items.map((item: any) => ({
+              id: item.id,
+              unit_id: unitId,
+              name: item.name,
+              price: item.price,
+              category: '',
+              qty: item.qty,
+              selectedVariants: item.selectedVariants || {},
+              totalPrice: item.totalPrice || item.price,
+            }))
+            setCart(existingItems)
+          }
+        })
+        .catch((err) => console.error('Failed to load existing order', err))
+    }
+  }, [orderIdFromUrl, unitId])
 
   const isCustomerInfoFilled = () => {
     return tableNumber.trim() !== '' && customerName.trim() !== ''
@@ -142,62 +171,71 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
   ) => {
     if (cart.length === 0) return
 
-    const currentUser = user?.username || 'Admin'
-
     const subtotal = cart.reduce((acc, item) => acc + item.totalPrice * item.qty, 0)
     const tax_amount = subtotal * taxRate
     const grand_total = subtotal + tax_amount
 
-    const payload = {
-      items: cart,
-      subtotal: subtotal,
-      tax_amount: tax_amount,
-      grand_total: grand_total,
-      payment_method: method,
-      table_number: tableNum,
-      customer_name: custName,
-      order_type: orderType,
-      unit_id: unitId,
-      user_id: user?.id,
-    }
-
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        const order: Order = {
-          ...payload,
-          invoice_number: data.invoice_number,
-          cashier_name: data.cashier_name,
-          created_at: data.created_at,
-          payment_status: 'PAID',
-          kitchen_status: 'NEW',
+      if (orderIdFromUrl) {
+        const res = await fetch(`/api/orders/${orderIdFromUrl}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cart,
+            subtotal,
+            tax_amount,
+            grand_total,
+          }),
+        })
+        if (res.ok) {
+          router.push('/pos/restaurant')
+        } else {
+          const data = await res.json()
+          alert(`Update failed: ${data.error}`)
+        }
+      } else {
+        const payload = {
+          items: cart,
+          subtotal,
+          tax_amount,
+          grand_total,
+          payment_method: method || 'PENDING',
+          payment_status: 'UNPAID',
+          table_number: tableNum,
+          customer_name: custName,
+          order_type: orderType,
+          unit_id: unitId,
+          user_id: user?.id,
         }
 
-        addOrder(order)
-        setLastOrder(order)
-        setIsReceiptOpen(true)
-        setCart([])
-        setTableNumber('')
-        setCustomerName('')
-      } else {
-        alert(`Order failed: ${data.error}`)
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        const data = await res.json()
+
+        if (res.ok) {
+          const order: Order = {
+            ...payload,
+            invoice_number: data.invoice_number,
+            cashier_name: data.cashier_name,
+            created_at: data.created_at,
+            payment_status: 'UNPAID',
+            kitchen_status: 'NEW',
+          }
+
+          addOrder(order)
+          router.push('/pos/restaurant')
+        } else {
+          alert(`Order failed: ${data.error}`)
+        }
       }
     } catch (error) {
-      console.error('Payment error:', error)
-      alert('Failed to process payment. Check console.')
+      console.error('Order error:', error)
+      alert('Failed to process order. Check console.')
     }
-  }
-
-  const handleNewOrder = () => {
-    setIsReceiptOpen(false)
-    setLastOrder(null)
   }
 
   if (!isAuthenticated) return null
@@ -205,6 +243,23 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
   return (
     <main className="bg-muted relative flex h-screen w-full">
       <div className="flex h-full flex-1 flex-col overflow-hidden">
+        {/* Back button */}
+        <div className="flex items-center gap-3 bg-white px-6 py-3 shadow-sm">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 rounded-xl"
+            onClick={() => router.push('/pos/restaurant')}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Floor Plan
+          </Button>
+          {tableFromUrl && (
+            <span className="text-muted-foreground text-sm">
+              Table <span className="text-foreground font-bold">{tableFromUrl}</span>
+            </span>
+          )}
+        </div>
         <div className="flex-1 overflow-y-auto">
           <ProductGrid products={products} onAddToCart={handleProductClick} />
         </div>
@@ -222,6 +277,7 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
         onCustomerNameChange={setCustomerName}
         showValidation={showValidation}
         onCustomerInfoSaved={handleCustomerInfoSaved}
+        mode="resto"
       />
 
       <VariantDialog
@@ -229,13 +285,6 @@ export function POSDashboard({ unitId, unitName }: POSDashboardProps) {
         isOpen={isVariantOpen}
         onClose={() => setIsVariantOpen(false)}
         onConfirm={addToCart}
-      />
-
-      <ReceiptDialog
-        order={lastOrder}
-        isOpen={isReceiptOpen}
-        onClose={() => setIsReceiptOpen(false)}
-        onNewOrder={handleNewOrder}
       />
     </main>
   )

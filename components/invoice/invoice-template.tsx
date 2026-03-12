@@ -7,7 +7,7 @@ interface InvoiceTemplateProps {
 
 export function InvoiceTemplate({ order }: InvoiceTemplateProps) {
   return (
-    <div className="w-[80mm] bg-white p-4 font-mono text-sm leading-tight text-black">
+    <div className="w-[80mm] bg-white px-4 pt-5 pb-6 font-mono text-sm leading-tight text-black">
       <div className="mb-4 text-center">
         <h1 className="text-xl font-bold">AXL Coffee</h1>
         <p className="text-xs">Jl. Adisucipto, Colomadu</p>
@@ -27,6 +27,8 @@ export function InvoiceTemplate({ order }: InvoiceTemplateProps) {
           })}
         </p>
         <p>Cashier: {order.cashier_name || '-'}</p>
+        <p>Customer: {order.customer_name || '-'}</p>
+        <p>Table: {order.table_number || '-'}</p>
       </div>
 
       <div className="mb-2 border-b border-dashed border-black pb-2">
@@ -61,7 +63,7 @@ export function InvoiceTemplate({ order }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="mb-8">
+      <div className="mb-4">
         <div className="flex justify-between text-lg font-bold">
           <span>TOTAL</span>
           <span>{formatRupiah(order.grand_total)}</span>
@@ -72,7 +74,7 @@ export function InvoiceTemplate({ order }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="mt-4 text-center text-xs">
+      <div className="mt-2 text-center text-xs">
         <p className="font-bold italic">Thank You!</p>
         <p className="italic">Please save this receipt as proof of payment</p>
       </div>

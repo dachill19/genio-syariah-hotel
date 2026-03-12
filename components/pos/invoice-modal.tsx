@@ -51,14 +51,14 @@ export function InvoiceModal({ order, isOpen, onClose }: InvoiceModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm overflow-hidden border-none bg-white p-0 shadow-2xl">
+      <DialogContent className="bg-card max-w-sm overflow-hidden border-none p-0 shadow-2xl">
         <DialogTitle className="sr-only">Invoice {order.invoice_number}</DialogTitle>
 
-        <div className="flex items-center justify-between border-b bg-gray-50 px-4 py-3">
-          <h3 className="font-semibold text-gray-900">Invoice Details</h3>
+        <div className="bg-muted/50 flex items-center justify-between border-b px-4 py-3">
+          <h3 className="text-foreground font-semibold">Invoice Details</h3>
         </div>
 
-        <div className="flex max-h-[70vh] flex-col overflow-y-auto bg-gray-50 p-6">
+        <div className="bg-muted/50 flex max-h-[70vh] flex-col overflow-y-auto p-6">
           <div className="mx-auto mb-6 w-[80mm] shadow-lg">
             <div ref={invoiceRef} className="bg-white text-black">
               <InvoiceTemplate order={order} />
@@ -66,7 +66,7 @@ export function InvoiceModal({ order, isOpen, onClose }: InvoiceModalProps) {
           </div>
         </div>
 
-        <div className="border-t bg-white p-4">
+        <div className="bg-card border-t p-4">
           <div className="grid grid-cols-2 gap-3">
             <Button variant="outline" className="w-full gap-2" onClick={handleDownloadPDF}>
               <Download className="h-4 w-4" /> Download PDF

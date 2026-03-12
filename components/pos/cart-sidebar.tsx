@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Trash2, Minus, Plus, Edit2, CreditCard, Banknote, QrCode } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Minus, Plus, Edit2, CreditCard, Banknote, QrCode, Check } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { formatRupiah, cn } from '@/lib/utils'
@@ -18,6 +18,13 @@ interface CartSidebarProps {
     orderType: OrderType,
   ) => void
   taxRate: number
+  tableNumber: string
+  customerName: string
+  onTableNumberChange: (value: string) => void
+  onCustomerNameChange: (value: string) => void
+  showValidation: boolean
+  onCustomerInfoSaved: () => void
+  mode?: 'cafe' | 'resto'
 }
 
 type PaymentMethod = 'CASH' | 'CARD' | 'QRIS'
@@ -28,107 +35,180 @@ export function CartSidebar({
   onRemove,
   onCheckout,
   taxRate,
+  tableNumber,
+  customerName,
+  onTableNumberChange,
+  onCustomerNameChange,
+  showValidation,
+  onCustomerInfoSaved,
+  mode = 'cafe',
 }: CartSidebarProps) {
+  const isResto = mode === 'resto'
   const [orderType, setOrderType] = useState<OrderType>('Dine in')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
-
   const [isEditing, setIsEditing] = useState(false)
-  const [tableNumber, setTableNumber] = useState('4')
-  const [customerName, setCustomerName] = useState('Floyd Miles')
+
+  const hasCustomerInfo = tableNumber.trim() !== '' && customerName.trim() !== ''
+
+  useEffect(() => {
+    if (showValidation) {
+      setIsEditing(true)
+    }
+  }, [showValidation])
+
+  const handleSave = () => {
+    if (hasCustomerInfo) {
+      setIsEditing(false)
+      onCustomerInfoSaved()
+    }
+  }
 
   const subtotal = items.reduce((acc, item) => acc + item.totalPrice * item.qty, 0)
   const tax = subtotal * taxRate
   const total = subtotal + tax
 
   return (
-    <div className="bg-card z-20 flex h-full w-[400px] flex-col border-l shadow-xl">
-      <div className="flex items-start justify-between border-b p-6">
-        <div className="flex-1 space-y-3">
+    <div className="bg-card z-20 flex h-full w-[380px] flex-col border-l shadow-xl">
+      {/* Header: Table + Customer */}
+      <div
+        className={cn(
+          'flex items-center justify-between border-b p-5 pb-4 transition-all',
+          showValidation && !hasCustomerInfo && 'bg-red-50/50',
+        )}
+      >
+        <div className="flex-1 space-y-2">
           {isEditing ? (
-            <div className="animate-in slide-in-from-left-2 space-y-3 duration-300">
+            <div className="animate-in slide-in-from-left-2 space-y-2.5 duration-300">
               <div className="flex items-center gap-3">
-                <span className="text-muted-foreground w-12 text-sm font-medium">Meja</span>
+                <span className="text-muted-foreground w-14 text-xs font-semibold tracking-wide uppercase">
+                  Table
+                </span>
                 <Input
-                  className="bg-background border-muted h-9"
+                  className={cn(
+                    'bg-muted/50 h-8 rounded-lg border text-sm',
+                    showValidation && tableNumber.trim() === ''
+                      ? 'border-red-400 bg-red-50/50'
+                      : 'border-transparent',
+                    isResto && 'cursor-not-allowed opacity-60',
+                  )}
                   value={tableNumber}
-                  onChange={(e) => setTableNumber(e.target.value)}
+                  onChange={(e) => onTableNumberChange(e.target.value)}
+                  placeholder="Table No."
+                  autoFocus={!isResto}
+                  readOnly={isResto}
+                  disabled={isResto}
                 />
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-muted-foreground w-12 text-sm font-medium">Nama</span>
+                <span className="text-muted-foreground w-14 text-xs font-semibold tracking-wide uppercase">
+                  Name
+                </span>
                 <Input
-                  className="bg-background border-muted h-9"
+                  className={cn(
+                    'bg-muted/50 h-8 rounded-lg border text-sm',
+                    showValidation && customerName.trim() === ''
+                      ? 'border-red-400 bg-red-50/50'
+                      : 'border-transparent',
+                  )}
                   value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nama Pelanggan"
+                  onChange={(e) => onCustomerNameChange(e.target.value)}
+                  placeholder="Customer Name"
                 />
               </div>
+              {showValidation && !hasCustomerInfo && (
+                <p className="text-xs font-medium text-red-500">
+                  Please fill in table number and customer name first
+                </p>
+              )}
+              <Button
+                size="sm"
+                className="mt-1 h-8 w-full gap-1.5 rounded-lg text-xs"
+                disabled={!hasCustomerInfo}
+                onClick={handleSave}
+              >
+                <Check className="h-3.5 w-3.5" />
+                Save
+              </Button>
+            </div>
+          ) : hasCustomerInfo ? (
+            <div className="space-y-0.5">
+              <h2 className="text-foreground text-xl font-bold">Table {tableNumber}</h2>
+              <p className="text-muted-foreground text-sm">{customerName}</p>
             </div>
           ) : (
-            <div className="space-y-1">
-              <h2 className="text-2xl font-bold">Table {tableNumber}</h2>
-              <p className="text-muted-foreground text-sm font-medium">{customerName}</p>
+            <div className="space-y-0.5">
+              <h2 className="text-muted-foreground text-lg font-medium italic">Not filled yet</h2>
+              <p className="text-muted-foreground/60 text-xs">Click ✏️ to fill table & name</p>
             </div>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            'bg-muted/50 hover:bg-muted ml-4 h-10 w-10 shrink-0 rounded-full',
-            isEditing && 'bg-primary/20 text-primary',
-          )}
-          onClick={() => setIsEditing(!isEditing)}
-        >
-          <Edit2 className="h-4 w-4" />
-        </Button>
+        {!isEditing && (
+          <button
+            className={cn(
+              'ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all',
+              !hasCustomerInfo
+                ? 'bg-primary/15 text-primary animate-pulse'
+                : 'bg-muted/60 text-muted-foreground hover:bg-muted',
+            )}
+            onClick={() => setIsEditing(true)}
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
-      <div className="p-4 pb-0">
-        <div className="bg-muted/50 flex w-full rounded-xl p-1">
+      {/* Order Type Toggle */}
+      <div className="px-5 pt-4 pb-2">
+        <div className="bg-muted/40 flex w-full rounded-xl p-1">
           {(['Dine in', 'Take Away'] as OrderType[]).map((type) => (
-            <Button
+            <button
               key={type}
-              variant={orderType === type ? 'default' : 'ghost'}
               onClick={() => setOrderType(type)}
               className={cn(
-                'flex-1 rounded-lg text-sm font-medium transition-all',
-                orderType !== type &&
-                  'text-muted-foreground hover:text-foreground hover:bg-transparent',
+                'flex-1 rounded-lg py-2 text-sm font-medium transition-all duration-200',
+                orderType === type
+                  ? 'bg-primary/10 text-primary font-bold shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               {type}
-            </Button>
+            </button>
           ))}
         </div>
       </div>
 
-      <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-4">
+      {/* Cart Items */}
+      <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto px-5 py-3">
         {items.length === 0 ? (
-          <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-center opacity-50">
-            <p className="text-lg font-medium">No items ordered</p>
-            <p className="text-sm">Select items from the menu to add them here.</p>
+          <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-center opacity-40">
+            <div className="mb-2 text-4xl">🍽️</div>
+            <p className="text-base font-medium">No items ordered</p>
+            <p className="text-sm">Select items from the menu</p>
           </div>
         ) : (
           items.map((item, index) => (
             <div
               key={`${item.id}-${index}`}
-              className="bg-card hover:bg-muted/20 flex gap-4 rounded-xl border p-3 shadow-sm transition-all"
+              className="animate-fade-in-up bg-card flex gap-3 rounded-2xl border p-3 shadow-sm transition-all hover:shadow-md"
             >
-              <div className="bg-muted h-16 w-16 overflow-hidden rounded-lg">
+              {/* Thumbnail */}
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl">
                 {item.image ? (
                   <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="bg-muted text-muted-foreground flex h-full w-full items-center justify-center text-xs">
+                  <div className="bg-muted text-muted-foreground flex h-full w-full items-center justify-center text-[10px]">
                     No Img
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-1 flex-col justify-between">
-                <div className="flex justify-between gap-2">
-                  <h4 className="line-clamp-2 text-sm leading-tight font-semibold">{item.name}</h4>
-                  <span className="shrink-0 text-sm font-bold">
+              {/* Details */}
+              <div className="flex flex-1 flex-col justify-between gap-1">
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="text-foreground line-clamp-2 text-sm leading-tight font-semibold">
+                    {item.name}
+                  </h4>
+                  <span className="text-foreground shrink-0 text-sm font-bold">
                     {formatRupiah(item.totalPrice * item.qty)}
                   </span>
                 </div>
@@ -141,28 +221,26 @@ export function CartSidebar({
                   </p>
                 )}
 
-                <div className="flex items-center gap-3 pt-1">
+                <div className="flex items-center justify-between pt-0.5">
                   <div className="text-primary text-xs font-medium">
                     {formatRupiah(item.totalPrice)}
+                    <span className="text-muted-foreground ml-2 text-[11px]">{item.qty}x</span>
                   </div>
-                  <div className="bg-muted/50 ml-auto flex items-center gap-2 rounded-lg px-1 py-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
+
+                  <div className="flex items-center gap-1.5">
+                    <button
                       onClick={() => onUpdateQty(index, -1)}
-                      className="hover:bg-background h-6 w-6 rounded shadow-none"
+                      className="bg-muted/60 hover:bg-muted flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
                     >
                       <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-4 text-center text-xs font-bold">{item.qty}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
+                    </button>
+                    <span className="w-5 text-center text-xs font-bold">{item.qty}</span>
+                    <button
                       onClick={() => onUpdateQty(index, 1)}
-                      className="hover:bg-background h-6 w-6 rounded shadow-none"
+                      className="bg-muted/60 hover:bg-muted flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
                     >
                       <Plus className="h-3 w-3" />
-                    </Button>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -171,74 +249,62 @@ export function CartSidebar({
         )}
       </div>
 
-      <div className="bg-card space-y-4 border-t p-6">
-        <div className="space-y-2">
+      {/* Summary + Payment + Place Order */}
+      <div className="bg-card z-10 space-y-4 border-t p-5 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.08)]">
+        {/* Totals */}
+        <div className="space-y-1.5">
           <div className="text-muted-foreground flex justify-between text-sm">
             <span>Sub Total</span>
-            <span>{formatRupiah(subtotal)}</span>
+            <span className="font-medium">{formatRupiah(subtotal)}</span>
           </div>
           <div className="text-muted-foreground flex justify-between text-sm">
             <span>Tax {taxRate * 100}%</span>
-            <span>{formatRupiah(tax)}</span>
+            <span className="font-medium">{formatRupiah(tax)}</span>
           </div>
 
           <div className="my-2 border-t border-dashed" />
 
-          <div className="text-foreground flex justify-between text-xl font-bold">
+          <div className="text-foreground flex justify-between text-lg font-bold">
             <span>Total Amount</span>
             <span>{formatRupiah(total)}</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setPaymentMethod('CASH')}
-            className={cn(
-              'h-auto flex-col gap-2 rounded-xl p-3',
-              paymentMethod === 'CASH'
-                ? 'border-primary bg-primary/5 text-primary ring-primary ring-1'
-                : 'border-muted hover:bg-muted/50 text-muted-foreground',
-            )}
-          >
-            <Banknote className="h-6 w-6" />
-            <span className="text-xs font-medium">Cash</span>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setPaymentMethod('CARD')}
-            className={cn(
-              'h-auto flex-col gap-2 rounded-xl p-3',
-              paymentMethod === 'CARD'
-                ? 'border-primary bg-primary/5 text-primary ring-primary ring-1'
-                : 'border-muted hover:bg-muted/50 text-muted-foreground',
-            )}
-          >
-            <CreditCard className="h-6 w-6" />
-            <span className="text-xs font-medium">Debit/Credit</span>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setPaymentMethod('QRIS')}
-            className={cn(
-              'h-auto flex-col gap-2 rounded-xl p-3',
-              paymentMethod === 'QRIS'
-                ? 'border-primary bg-primary/5 text-primary ring-primary ring-1'
-                : 'border-muted hover:bg-muted/50 text-muted-foreground',
-            )}
-          >
-            <QrCode className="h-6 w-6" />
-            <span className="text-xs font-medium">QR Code</span>
-          </Button>
-        </div>
+        {/* Payment Methods (hidden in resto mode) */}
+        {!isResto && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {[
+              { key: 'CASH' as PaymentMethod, icon: Banknote, label: 'Cash' },
+              { key: 'CARD' as PaymentMethod, icon: CreditCard, label: 'Debit/Credit' },
+              { key: 'QRIS' as PaymentMethod, icon: QrCode, label: 'QR Code' },
+            ].map(({ key, icon: Icon, label }) => (
+              <button
+                key={key}
+                onClick={() => setPaymentMethod(key)}
+                className={cn(
+                  'flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all duration-200',
+                  paymentMethod === key
+                    ? 'border-primary bg-primary/5 text-primary shadow-sm'
+                    : 'border-muted text-muted-foreground hover:bg-muted/30 hover:text-foreground',
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-[11px] font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
+        {/* Place Order Button */}
         <Button
-          className="w-full rounded-xl py-6 text-lg font-bold shadow-lg"
+          className="w-full rounded-2xl py-6 text-base font-bold shadow-lg transition-all hover:shadow-xl"
           size="lg"
           disabled={items.length === 0}
-          onClick={() => onCheckout(paymentMethod, tableNumber, customerName, orderType)}
+          onClick={() =>
+            onCheckout(isResto ? 'PENDING' : paymentMethod, tableNumber, customerName, orderType)
+          }
         >
-          Pay Now
+          Place Order
         </Button>
       </div>
     </div>
