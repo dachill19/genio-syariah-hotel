@@ -317,7 +317,7 @@ export function MenuManager({ unitId }: MenuManagerProps) {
                       <Package className="text-muted-foreground h-12 w-12" />
                     </div>
                   )}
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="absolute top-2 right-2 flex gap-1">
                     <button
                       onClick={() => openProductModal(product)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-md transition-colors hover:bg-blue-50"
