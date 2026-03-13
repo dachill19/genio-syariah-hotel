@@ -20,6 +20,13 @@ import {
   Package,
 } from 'lucide-react'
 import { ReceiptViewDialog } from '@/components/pos/receipt-view-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface SalesHistoryProps {
   unitId: number
@@ -238,29 +245,31 @@ export function SalesHistory({ unitId }: SalesHistoryProps) {
 
           <div className="w-[180px]">
              <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Payment Method</label>
-             <select 
-               value={paymentFilter}
-               onChange={(e) => setPaymentFilter(e.target.value)}
-               className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
-             >
-                <option value="ALL">All Methods</option>
-                <option value="CASH">Cash</option>
-                <option value="QRIS">QRIS</option>
-                <option value="CARD">Card</option>
-             </select>
+             <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+               <SelectTrigger className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50">
+                 <SelectValue placeholder="All Methods" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="ALL">All Methods</SelectItem>
+                 <SelectItem value="CASH">Cash</SelectItem>
+                 <SelectItem value="QRIS">QRIS</SelectItem>
+                 <SelectItem value="CARD">Card</SelectItem>
+               </SelectContent>
+             </Select>
           </div>
 
           <div className="w-[180px]">
              <label className="text-xs font-bold text-muted-foreground uppercase mb-1.5 block">Order Type</label>
-             <select 
-               value={typeFilter}
-               onChange={(e) => setTypeFilter(e.target.value)}
-               className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
-             >
-                <option value="ALL">All Types</option>
-                <option value="Dine in">Dine in</option>
-                <option value="Take Away">Take Away</option>
-             </select>
+             <Select value={typeFilter} onValueChange={setTypeFilter}>
+               <SelectTrigger className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50">
+                 <SelectValue placeholder="All Types" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="ALL">All Types</SelectItem>
+                 <SelectItem value="Dine in">Dine in</SelectItem>
+                 <SelectItem value="Take Away">Take Away</SelectItem>
+               </SelectContent>
+             </Select>
           </div>
 
           <div className="flex items-end h-[62px]">

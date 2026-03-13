@@ -25,6 +25,13 @@ import {
   Package,
   Save,
 } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface MenuManagerProps {
   unitId: number
@@ -517,16 +524,20 @@ export function MenuManager({ unitId }: MenuManagerProps) {
                   </div>
                   <div>
                     <label className="text-foreground mb-1 block text-sm font-medium">Category</label>
-                    <select
-                      value={productForm.category_id}
-                      onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
-                      className="border-input bg-background w-full rounded-xl border px-3 py-2 text-sm"
+                    <Select
+                      value={productForm.category_id || "none"}
+                      onValueChange={(val) => setProductForm({ ...productForm, category_id: val === "none" ? "" : val })}
                     >
-                      <option value="">No category</option>
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="border-input bg-background w-full rounded-xl border px-3 py-2 text-sm focus:ring-0">
+                        <SelectValue placeholder="No category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No category</SelectItem>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div>
