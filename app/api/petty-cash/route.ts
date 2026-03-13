@@ -5,7 +5,7 @@ import path from 'path'
 import { randomUUID } from 'crypto'
 
 const PETTY_CASH_PREFIX = 'PETTY_CASH_SENTINEL'
-const ALLOWED_SOURCE_ACCOUNTS = new Set(['1101', '1103'])
+const ALLOWED_SOURCE_ACCOUNTS = new Set(['1101', '1102', '1103'])
 const ALLOWED_RECEIPT_MIME = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 function parseReceiptDataUrl(dataUrl: string) {
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'idempotency_key is required' }, { status: 400 })
     }
     if (!ALLOWED_SOURCE_ACCOUNTS.has(source_account)) {
-      return NextResponse.json({ error: 'source_account must be 1101 or 1103' }, { status: 400 })
+      return NextResponse.json({ error: 'source_account must be 1101, 1102, or 1103' }, { status: 400 })
     }
     if (!Number.isFinite(roundedAmount) || roundedAmount < 500) {
       return NextResponse.json({ error: 'amount must be at least 500' }, { status: 400 })
@@ -212,7 +212,8 @@ export async function POST(req: Request) {
       }
 
       const sentinelDescription = `${PETTY_CASH_PREFIX} - ${description}`
-      const paymentMethod = source_account === '1101' ? 'CASH' : 'CARD'
+      const paymentMethod =
+        source_account === '1101' ? 'CASH' : source_account === '1102' ? 'QRIS' : 'CARD'
 
       const orderRes = await client.query(
         `

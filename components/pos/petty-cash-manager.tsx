@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { formatRupiah, cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
-import { PiggyBank, RefreshCw, Wallet, Landmark, ReceiptText, ImagePlus, TrendingUp, Eye } from 'lucide-react'
+import { PiggyBank, RefreshCw, Wallet, Landmark, QrCode, ReceiptText, ImagePlus, TrendingUp, Eye } from 'lucide-react'
 
 interface PettyCashManagerProps {
   unitId: number
@@ -21,7 +21,7 @@ interface PettyCashManagerProps {
 
 interface PettyCashEntry {
   id: string
-  source_account: '1101' | '1103'
+  source_account: '1101' | '1102' | '1103'
   amount: number
   description: string
   receipt_proof?: string | null
@@ -34,6 +34,7 @@ interface PettyCashEntry {
 
 const SOURCE_ACCOUNT_OPTIONS = [
   { value: '1101', label: '1101 - Kas Tunai', icon: Wallet },
+  { value: '1102', label: '1102 - Kas di Bank QRIS', icon: QrCode },
   { value: '1103', label: '1103 - Kas di Bank EDC BCA', icon: Landmark },
 ] as const
 
@@ -45,7 +46,7 @@ export function PettyCashManager({ unitId }: PettyCashManagerProps) {
   const [entries, setEntries] = useState<PettyCashEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [sourceAccount, setSourceAccount] = useState<'1101' | '1103'>('1101')
+  const [sourceAccount, setSourceAccount] = useState<'1101' | '1102' | '1103'>('1101')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [receiptProof, setReceiptProof] = useState<string | null>(null)
@@ -210,7 +211,11 @@ export function PettyCashManager({ unitId }: PettyCashManagerProps) {
                       <div>
                         <p className="text-sm font-semibold text-foreground">{option.label}</p>
                         <p className="text-xs text-muted-foreground">
-                          {option.value === '1101' ? 'Cash on hand' : 'EDC / bank source'}
+                          {option.value === '1101'
+                            ? 'Cash on hand'
+                            : option.value === '1102'
+                              ? 'QRIS settlement source'
+                              : 'EDC / bank source'}
                         </p>
                       </div>
                     </button>

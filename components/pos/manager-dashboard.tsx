@@ -39,7 +39,7 @@ interface ManagerDashboardProps {
 
 interface PettyCashHistoryItem {
   id: string
-  source_account: '1101' | '1103'
+  source_account: '1101' | '1102' | '1103'
   amount: number
   description: string
   receipt_proof?: string | null
@@ -253,6 +253,7 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
 
   const getSourceAccountLabel = (code: string) => {
     if (code === '1101') return '1101 - Kas Tunai'
+    if (code === '1102') return '1102 - Kas di Bank QRIS'
     if (code === '1103') return '1103 - Kas di Bank EDC BCA'
     return code
   }
@@ -692,6 +693,8 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
                             <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase text-primary">
                               {entry.source_account === '1101' ? (
                                 <Wallet className="h-3 w-3" />
+                              ) : entry.source_account === '1102' ? (
+                                <QrCode className="h-3 w-3" />
                               ) : (
                                 <Landmark className="h-3 w-3" />
                               )}

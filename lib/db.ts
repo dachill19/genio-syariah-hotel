@@ -201,35 +201,34 @@ async function seedUnits(pool: Pool) {
 }
 
 async function seedUsers(pool: Pool) {
-  const res = await pool.query('SELECT count(*) as count FROM users')
-  const count = parseInt(res.rows[0].count)
-  if (count === 0) {
-    const cafeRes = await pool.query("SELECT id FROM units WHERE type = 'CAFE' LIMIT 1")
-    const cafeId = cafeRes.rows[0]?.id
+  const cafeRes = await pool.query("SELECT id FROM units WHERE type = 'CAFE' LIMIT 1")
+  const cafeId = cafeRes.rows[0]?.id
 
-    const restoRes = await pool.query("SELECT id FROM units WHERE type = 'RESTO' LIMIT 1")
-    const restoId = restoRes.rows[0]?.id
+  const restoRes = await pool.query("SELECT id FROM units WHERE type = 'RESTO' LIMIT 1")
+  const restoId = restoRes.rows[0]?.id
 
-    const password = bcrypt.hashSync('1234', 10)
+  if (!cafeId || !restoId) return
 
+  const password = bcrypt.hashSync('1234', 10)
+
+  const requiredUsers = [
+    { username: 'cafe_csr_1', role: 'CASHIER', unitId: cafeId },
+    { username: 'cafe_csr_2', role: 'CASHIER', unitId: cafeId },
+    { username: 'resto_csr_1', role: 'CASHIER', unitId: restoId },
+    { username: 'resto_csr_2', role: 'CASHIER', unitId: restoId },
+    { username: 'cafe_mgr', role: 'MANAGER', unitId: cafeId },
+    { username: 'resto_mgr', role: 'MANAGER', unitId: restoId },
+  ]
+
+  for (const user of requiredUsers) {
     await pool.query(
-      'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
-      ['jokowi', 'CASHIER', password, cafeId],
-    )
-
-    await pool.query(
-      'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
-      ['windah', 'CASHIER', password, restoId],
-    )
-
-    await pool.query(
-      'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
-      ['cafe_mgr', 'MANAGER', password, cafeId],
-    )
-
-    await pool.query(
-      'INSERT INTO users (username, role, password, unit_id) VALUES ($1, $2, $3, $4)',
-      ['resto_mgr', 'MANAGER', password, restoId],
+      `
+        INSERT INTO users (username, role, password, unit_id)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (username)
+        DO UPDATE SET role = EXCLUDED.role, unit_id = EXCLUDED.unit_id
+      `,
+      [user.username, user.role, password, user.unitId],
     )
   }
 }

@@ -772,7 +772,9 @@ async function main() {
 
     console.log('Demo seeder selesai.')
     console.table(countRes.rows)
-    console.log('Tip login demo: jokowi / windah / cafe_mgr / resto_mgr (password: 1234)')
+    console.log(
+      'Tip login demo: cafe_csr_1 / cafe_csr_2 / resto_csr_1 / resto_csr_2 / cafe_mgr / resto_mgr (password: 1234)',
+    )
   } catch (err) {
     await client.query('ROLLBACK')
     console.error('Seeder gagal:', err.message)
