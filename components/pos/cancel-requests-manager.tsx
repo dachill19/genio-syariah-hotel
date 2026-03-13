@@ -119,9 +119,6 @@ export function CancelRequestsManager({ unitId }: CancelRequestsManagerProps) {
             </div>
             Cancel Order Requests
           </h1>
-          <p className="text-muted-foreground mt-1.5 ml-14 text-sm">
-            Review and approve or reject cashier cancellation requests
-          </p>
         </div>
         <Button
           variant="outline"

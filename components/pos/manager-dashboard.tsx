@@ -19,12 +19,33 @@ import {
   UtensilsCrossed,
   Eye,
   Package,
+  Wallet,
+  Landmark,
+  ScrollText,
 } from 'lucide-react'
 import { ReceiptViewDialog } from '@/components/pos/receipt-view-dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface ManagerDashboardProps {
   unitId: number
+}
+
+interface PettyCashHistoryItem {
+  id: string
+  source_account: '1101' | '1103'
+  amount: number
+  description: string
+  receipt_proof?: string | null
+  created_at: string
+  username: string
+  invoice_number: string
 }
 
 type DatePreset = 'today' | 'week' | 'month' | 'custom'
@@ -123,12 +144,18 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
   const [startDate, setStartDate] = useState(() => getPresetDates('month').start)
   const [endDate, setEndDate] = useState(getToday())
   const [data, setData] = useState<any>(null)
+  const [pettyCashHistory, setPettyCashHistory] = useState<PettyCashHistoryItem[]>([])
+  const [pettyCashLoading, setPettyCashLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const chartRef = useRef<HTMLCanvasElement>(null)
 
   // Dialog State
   const [selectedTx, setSelectedTx] = useState<any>(null)
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+  const [selectedPettyPhoto, setSelectedPettyPhoto] = useState<{
+    image: string
+    title: string
+  } | null>(null)
 
   const handlePresetChange = (p: DatePreset) => {
     setPreset(p)
@@ -147,6 +174,18 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [startDate, endDate, unitId])
+
+  useEffect(() => {
+    setPettyCashLoading(true)
+    fetch(`/api/petty-cash?unitId=${unitId}`)
+      .then((res) => res.json())
+      .then((rows) => setPettyCashHistory(Array.isArray(rows) ? rows : []))
+      .catch((error) => {
+        console.error('Failed to fetch petty cash history', error)
+        setPettyCashHistory([])
+      })
+      .finally(() => setPettyCashLoading(false))
+  }, [unitId])
 
   useEffect(() => {
     if (!data?.dailySales?.length || !chartRef.current) return
@@ -211,6 +250,12 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
       bgIcon: 'bg-violet-100',
     },
   ]
+
+  const getSourceAccountLabel = (code: string) => {
+    if (code === '1101') return '1101 - Kas Tunai'
+    if (code === '1103') return '1103 - Kas di Bank EDC BCA'
+    return code
+  }
 
   return (
     <div className="bg-background flex h-screen flex-col overflow-y-auto p-8">
@@ -598,6 +643,103 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Petty Cash History */}
+          <Card className="border">
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between border-b px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <ScrollText className="text-primary h-4 w-4" />
+                  <h3 className="text-foreground text-sm font-bold">Petty Cash History</h3>
+                </div>
+                <span className="text-muted-foreground text-xs">
+                  {pettyCashHistory.length} entries
+                </span>
+              </div>
+
+              {pettyCashLoading && pettyCashHistory.length === 0 ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="border-primary h-6 w-6 animate-spin rounded-full border-2 border-t-transparent" />
+                </div>
+              ) : pettyCashHistory.length === 0 ? (
+                <div className="text-muted-foreground px-5 py-10 text-center text-sm">
+                  No petty cash entries for this unit.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-muted/50 text-muted-foreground text-xs uppercase">
+                      <tr>
+                        <th className="px-5 py-3 font-semibold tracking-wider">Date & Time</th>
+                        <th className="px-5 py-3 font-semibold tracking-wider">Source</th>
+                        <th className="px-5 py-3 font-semibold tracking-wider">Description</th>
+                        <th className="px-5 py-3 font-semibold tracking-wider">Manager</th>
+                        <th className="px-5 py-3 font-semibold tracking-wider">Sentinel Ref</th>
+                        <th className="px-5 py-3 text-right font-semibold tracking-wider">Amount</th>
+                        <th className="px-5 py-3 text-center font-semibold tracking-wider">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-border divide-y">
+                      {pettyCashHistory.slice(0, 10).map((entry) => (
+                        <tr key={entry.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="text-muted-foreground px-5 py-3 font-mono text-[13px]">
+                            {new Date(entry.created_at).toLocaleString('id-ID', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase text-primary">
+                              {entry.source_account === '1101' ? (
+                                <Wallet className="h-3 w-3" />
+                              ) : (
+                                <Landmark className="h-3 w-3" />
+                              )}
+                              {getSourceAccountLabel(entry.source_account)}
+                            </span>
+                          </td>
+                          <td className="text-foreground max-w-[360px] px-5 py-3 text-sm">
+                            <span className="block truncate" title={entry.description}>
+                              {entry.description}
+                            </span>
+                          </td>
+                          <td className="text-muted-foreground px-5 py-3 text-[13px] font-medium">
+                            {entry.username || '-'}
+                          </td>
+                          <td className="text-foreground px-5 py-3 font-mono text-xs">
+                            {entry.invoice_number}
+                          </td>
+                          <td className="text-foreground px-5 py-3 text-right font-bold">
+                            {formatRupiah(Number(entry.amount || 0))}
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            {entry.receipt_proof ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-lg"
+                                onClick={() =>
+                                  setSelectedPettyPhoto({
+                                    image: entry.receipt_proof || '',
+                                    title: `${entry.invoice_number} - ${entry.description}`,
+                                  })
+                                }
+                                title="View Receipt Photo"
+                              >
+                                <Eye className="text-muted-foreground hover:text-foreground h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -610,6 +752,24 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
           setSelectedTx(null)
         }}
       />
+
+      <Dialog open={!!selectedPettyPhoto} onOpenChange={(open) => !open && setSelectedPettyPhoto(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Petty Cash Receipt</DialogTitle>
+            <DialogDescription className="truncate">{selectedPettyPhoto?.title || '-'}</DialogDescription>
+          </DialogHeader>
+          {selectedPettyPhoto?.image ? (
+            <div className="overflow-hidden rounded-xl border bg-muted/20">
+              <img
+                src={selectedPettyPhoto.image}
+                alt="Petty cash receipt"
+                className="max-h-[70vh] w-full object-contain"
+              />
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

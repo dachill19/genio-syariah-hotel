@@ -14,6 +14,7 @@ import {
   UtensilsCrossed,
   History as HistoryIcon,
   ShieldAlert,
+  PiggyBank,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -109,6 +110,12 @@ export function Sidebar() {
       label: 'Cafe Menu',
       hidden: !(isManager && isCafe),
     },
+    {
+      href: '/pos/cafe/manager/petty-cash',
+      icon: PiggyBank,
+      label: 'Cafe Petty Cash',
+      hidden: !(isManager && isCafe),
+    },
 
     // MANAGER — Resto
     {
@@ -127,6 +134,12 @@ export function Sidebar() {
       href: '/pos/restaurant/manager/menu',
       icon: UtensilsCrossed,
       label: 'Resto Menu',
+      hidden: !(isManager && isResto),
+    },
+    {
+      href: '/pos/restaurant/manager/petty-cash',
+      icon: PiggyBank,
+      label: 'Resto Petty Cash',
       hidden: !(isManager && isResto),
     },
     {

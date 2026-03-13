@@ -35,6 +35,7 @@ export async function GET(req: Request) {
       WHERE DATE(o.created_at AT TIME ZONE 'Asia/Jakarta') BETWEEN $1 AND $2
         AND o.unit_id = $3
         AND o.payment_status != 'VOID'
+        AND COALESCE(o.description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
     `
     const params: any[] = [startDate, endDate, unitId]
     let paramIndex = 4

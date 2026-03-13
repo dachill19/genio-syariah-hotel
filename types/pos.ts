@@ -39,7 +39,7 @@ export interface CartItem extends Product {
   note?: string
 }
 
-export type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED' | 'VOID'
+export type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED' | 'VOID' | 'CANCELLED'
 export type KitchenStatus = 'NEW' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELED'
 
 export type OrderType = 'Dine in' | 'Take Away'
@@ -49,6 +49,7 @@ export interface Order {
   unit_id?: number
   user_id?: string
   invoice_number: string
+  description?: string
   created_at: string
   grand_total: number
   subtotal: number

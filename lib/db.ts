@@ -76,6 +76,7 @@ async function initDb(pool: Pool) {
         unit_id INTEGER REFERENCES units(id),
         user_id UUID REFERENCES users(id),
         invoice_number TEXT UNIQUE NOT NULL,
+        description TEXT,
         subtotal INTEGER NOT NULL,
         tax_amount INTEGER NOT NULL DEFAULT 0,
         grand_total INTEGER NOT NULL,
@@ -89,6 +90,8 @@ async function initDb(pool: Pool) {
         order_type TEXT
       )
     `)
+
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS description TEXT`)
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS orders_items (
@@ -146,6 +149,24 @@ async function initDb(pool: Pool) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS petty_cash_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        unit_id INTEGER REFERENCES units(id),
+        user_id UUID REFERENCES users(id),
+        source_account TEXT REFERENCES coa(code),
+        amount INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        receipt_proof TEXT,
+        idempotency_key TEXT UNIQUE NOT NULL,
+        sentinel_order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+        journal_entry_id UUID REFERENCES journal_entries(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
+    await client.query(`ALTER TABLE petty_cash_entries ADD COLUMN IF NOT EXISTS receipt_proof TEXT`)
 
     await client.query('COMMIT')
 

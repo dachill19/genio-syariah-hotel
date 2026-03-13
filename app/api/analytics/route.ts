@@ -31,6 +31,7 @@ export async function GET(req: Request) {
       WHERE DATE(o.created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND o.unit_id = $3
         AND o.payment_status = 'PAID'
+        AND COALESCE(o.description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
     `
 
     const dailySalesQuery = `
@@ -41,6 +42,7 @@ export async function GET(req: Request) {
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
         AND payment_status = 'PAID'
+        AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
       GROUP BY DATE(created_at AT TIME ZONE '${TZ}')
       ORDER BY date ASC
     `
@@ -54,6 +56,7 @@ export async function GET(req: Request) {
       WHERE DATE(o.created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND o.unit_id = $3
         AND o.payment_status = 'PAID'
+        AND COALESCE(o.description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
       GROUP BY oi.name
       ORDER BY total_qty DESC
       LIMIT 10
@@ -67,6 +70,7 @@ export async function GET(req: Request) {
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
         AND payment_status = 'PAID'
+        AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
       GROUP BY payment_method
     `
 
@@ -78,6 +82,7 @@ export async function GET(req: Request) {
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
         AND payment_status = 'PAID'
+        AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
       GROUP BY order_type
     `
 
@@ -87,6 +92,7 @@ export async function GET(req: Request) {
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
         AND payment_status IN ('PAID', 'CANCELLED')
+        AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
       ORDER BY created_at DESC
       LIMIT 10
     `

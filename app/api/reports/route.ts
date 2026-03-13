@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const now = new Date()
     const today = new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-    const baseWhere = `WHERE DATE(orders.created_at AT TIME ZONE 'Asia/Jakarta') = $1 AND orders.unit_id = $2 AND orders.cashier_name = $3`
+    const baseWhere = `WHERE DATE(orders.created_at AT TIME ZONE 'Asia/Jakarta') = $1 AND orders.unit_id = $2 AND orders.cashier_name = $3 AND COALESCE(orders.description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'`
     const transactionWhereClause = `${baseWhere} AND orders.payment_status IN ('PAID', 'CANCELLED')`
     const summaryWhereClause = `${baseWhere} AND orders.payment_status = 'PAID'`
     const params = [today, unitId, cashierName]
