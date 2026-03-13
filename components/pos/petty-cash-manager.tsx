@@ -73,6 +73,19 @@ export function PettyCashManager({ unitId }: PettyCashManagerProps) {
   const handleSubmit = async () => {
     if (!user) return
 
+    if (!amount || Number(amount) < 500) {
+      setNotice({ type: 'error', message: 'Amount minimum is 500.' })
+      return
+    }
+    if (description.trim().length < 3) {
+      setNotice({ type: 'error', message: 'Description minimum is 3 characters.' })
+      return
+    }
+    if (!receiptProof) {
+      setNotice({ type: 'error', message: 'Receipt image is required.' })
+      return
+    }
+
     setSubmitting(true)
     setNotice(null)
 
@@ -230,7 +243,9 @@ export function PettyCashManager({ unitId }: PettyCashManagerProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Receipt Document</label>
+              <label className="text-sm font-semibold text-foreground">
+                Receipt Document <span className="text-red-500">*</span>
+              </label>
               <label className="border-input bg-background hover:bg-muted/30 flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 text-sm text-muted-foreground transition-colors">
                 <ImagePlus className="h-4 w-4" />
                 <span>{receiptProof ? 'Change receipt image' : 'Upload receipt image'}</span>
@@ -248,6 +263,7 @@ export function PettyCashManager({ unitId }: PettyCashManagerProps) {
                   </button>
                 </div>
               )}
+              <p className="text-xs text-muted-foreground">Required. Max size 1.5MB.</p>
             </div>
 
             {notice && (
@@ -263,7 +279,11 @@ export function PettyCashManager({ unitId }: PettyCashManagerProps) {
               </div>
             )}
 
-            <Button className="w-full rounded-xl" onClick={handleSubmit} disabled={submitting || !user}>
+            <Button
+              className="w-full rounded-xl"
+              onClick={handleSubmit}
+              disabled={submitting || !user || !receiptProof}
+            >
               {submitting ? 'Saving...' : 'Submit Petty Cash'}
             </Button>
           </CardContent>

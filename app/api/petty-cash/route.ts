@@ -1,8 +1,60 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { mkdir, writeFile } from 'fs/promises'
+import path from 'path'
+import { randomUUID } from 'crypto'
 
 const PETTY_CASH_PREFIX = 'PETTY_CASH_SENTINEL'
 const ALLOWED_SOURCE_ACCOUNTS = new Set(['1101', '1103'])
+const ALLOWED_RECEIPT_MIME = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
+function parseReceiptDataUrl(dataUrl: string) {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
+  if (!match) {
+    return null
+  }
+
+  const mimeType = match[1].toLowerCase()
+  const base64Data = match[2]
+  return { mimeType, base64Data }
+}
+
+function mimeToExtension(mimeType: string) {
+  if (mimeType === 'image/jpeg') return 'jpg'
+  if (mimeType === 'image/png') return 'png'
+  if (mimeType === 'image/webp') return 'webp'
+  return null
+}
+
+async function persistReceiptImage(dataUrl: string) {
+  const parsed = parseReceiptDataUrl(dataUrl)
+  if (!parsed) {
+    throw new Error('INVALID_RECEIPT_FORMAT')
+  }
+
+  if (!ALLOWED_RECEIPT_MIME.has(parsed.mimeType)) {
+    throw new Error('INVALID_RECEIPT_TYPE')
+  }
+
+  const binarySize = Buffer.byteLength(parsed.base64Data, 'base64')
+  if (binarySize > 1_500_000) {
+    throw new Error('RECEIPT_TOO_LARGE')
+  }
+
+  const extension = mimeToExtension(parsed.mimeType)
+  if (!extension) {
+    throw new Error('INVALID_RECEIPT_TYPE')
+  }
+
+  const receiptsDir = path.join(process.cwd(), 'public', 'receipts')
+  await mkdir(receiptsDir, { recursive: true })
+
+  const filename = `receipt-${Date.now()}-${randomUUID()}.${extension}`
+  const absoluteFilePath = path.join(receiptsDir, filename)
+  await writeFile(absoluteFilePath, Buffer.from(parsed.base64Data, 'base64'))
+
+  return `/receipts/${filename}`
+}
 
 const buildSentinelInvoiceNumber = () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -80,11 +132,25 @@ export async function POST(req: Request) {
     if (description.length < 3) {
       return NextResponse.json({ error: 'description must be at least 3 characters' }, { status: 400 })
     }
-    if (receipt_proof && !receipt_proof.startsWith('data:image/')) {
-      return NextResponse.json({ error: 'receipt_proof must be an image data URL' }, { status: 400 })
+    if (!receipt_proof) {
+      return NextResponse.json({ error: 'receipt_proof is required' }, { status: 400 })
     }
-    if (receipt_proof && receipt_proof.length > 2_000_000) {
-      return NextResponse.json({ error: 'receipt_proof is too large' }, { status: 400 })
+
+    let storedReceiptPath = ''
+    try {
+      storedReceiptPath = await persistReceiptImage(receipt_proof)
+    } catch (error: any) {
+      if (error instanceof Error && error.message === 'INVALID_RECEIPT_FORMAT') {
+        return NextResponse.json({ error: 'receipt_proof must be a valid image data URL' }, { status: 400 })
+      }
+      if (error instanceof Error && error.message === 'INVALID_RECEIPT_TYPE') {
+        return NextResponse.json({ error: 'receipt image type must be jpeg, png, or webp' }, { status: 400 })
+      }
+      if (error instanceof Error && error.message === 'RECEIPT_TOO_LARGE') {
+        return NextResponse.json({ error: 'receipt image max size is 1.5MB' }, { status: 400 })
+      }
+      console.error('Petty cash receipt save error:', error)
+      return NextResponse.json({ error: 'Failed to save receipt image' }, { status: 500 })
     }
 
     const pool = await getDb()
@@ -240,7 +306,7 @@ export async function POST(req: Request) {
           source_account,
           roundedAmount,
           description,
-          receipt_proof,
+          storedReceiptPath,
           idempotency_key,
           sentinelOrderId,
           journalEntryId,
