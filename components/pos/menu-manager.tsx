@@ -326,8 +326,8 @@ export function MenuManager({ unitId }: MenuManagerProps) {
   }
 
   return (
-    <div className="bg-background flex h-screen flex-col overflow-hidden p-8">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="bg-background flex h-screen flex-col overflow-hidden p-4 md:p-8">
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-foreground flex items-center gap-3 text-3xl font-bold">
             <div className="bg-primary/10 flex h-11 w-11 items-center justify-center rounded-xl">

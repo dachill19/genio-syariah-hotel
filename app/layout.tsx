@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'POS Application',
-  description: 'Next.js POS System',
+  title: 'Genio Syariah Hotel',
+  description: 'Genio Syariah Hotel System',
 }
 
 export default function RootLayout({
