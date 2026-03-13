@@ -1,0 +1,788 @@
+/* eslint-disable no-console */
+const { Client } = require('pg')
+const readline = require('readline')
+
+const DEMO_PREFIX = 'DEMO-'
+const DEMO_TAG = '[DEMO]'
+const FLOOR_TABLE_NUMBERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
+
+function env(name, fallback) {
+  return process.env[name] || fallback
+}
+
+function ask(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
+    rl.question(question, (answer) => {
+      rl.close()
+      resolve(answer)
+    })
+  })
+}
+
+function daysAgo(days, hour = 10, minute = 0) {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  d.setHours(hour, minute, 0, 0)
+  return d
+}
+
+function ymd(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}${m}${d}`
+}
+
+function pickProducts(products, startIndex, qtySeed) {
+  const chosen = []
+  const len = products.length
+  if (len === 0) return chosen
+
+  for (let i = 0; i < Math.min(3, len); i += 1) {
+    const p = products[(startIndex + i) % len]
+    chosen.push({
+      ...p,
+      qty: ((qtySeed + i) % 2) + 1,
+    })
+  }
+
+  return chosen
+}
+
+async function createJournal(client, {
+  unitId,
+  orderId,
+  unitType,
+  paymentMethod,
+  invoiceNumber,
+  subtotal,
+  taxAmount,
+  grandTotal,
+  totalCogs,
+  createdAt,
+}) {
+  let kasAccount = '1101'
+  if (paymentMethod === 'QRIS') kasAccount = '1102'
+  else if (paymentMethod === 'CARD' || paymentMethod === 'DEBIT') kasAccount = '1103'
+
+  const pendapatanAccount = unitType === 'RESTO' ? '4101' : '4102'
+  const hppAccount = unitType === 'RESTO' ? '5101' : '5102'
+
+  const entryRes = await client.query(
+    `
+      INSERT INTO journal_entries (unit_id, order_id, description, created_at)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
+    `,
+    [unitId, orderId, `[DEMO] Penjualan ${unitType} - ${invoiceNumber}`, createdAt],
+  )
+
+  const journalId = entryRes.rows[0].id
+
+  await client.query(
+    `INSERT INTO journal_lines (journal_entry_id, account_code, debit, kredit) VALUES ($1, $2, $3, $4)`,
+    [journalId, kasAccount, grandTotal, 0],
+  )
+  await client.query(
+    `INSERT INTO journal_lines (journal_entry_id, account_code, debit, kredit) VALUES ($1, $2, $3, $4)`,
+    [journalId, pendapatanAccount, 0, subtotal],
+  )
+
+  if (taxAmount > 0) {
+    await client.query(
+      `INSERT INTO journal_lines (journal_entry_id, account_code, debit, kredit) VALUES ($1, '2101', 0, $2)`,
+      [journalId, taxAmount],
+    )
+  }
+
+  if (totalCogs > 0) {
+    await client.query(
+      `INSERT INTO journal_lines (journal_entry_id, account_code, debit, kredit) VALUES ($1, $2, $3, 0)`,
+      [journalId, hppAccount, totalCogs],
+    )
+    await client.query(
+      `INSERT INTO journal_lines (journal_entry_id, account_code, debit, kredit) VALUES ($1, '1104', 0, $2)`,
+      [journalId, totalCogs],
+    )
+  }
+
+  return journalId
+}
+
+async function createOrder(client, {
+  invoiceNumber,
+  unit,
+  cashier,
+  orderType,
+  paymentMethod,
+  paymentStatus,
+  kitchenStatus,
+  tableNumber,
+  customerName,
+  createdAt,
+  productIndex,
+}) {
+  const items = pickProducts(unit.products, productIndex, invoiceNumber.length)
+  if (items.length === 0) {
+    throw new Error(`No products found for unit ${unit.type}`)
+  }
+
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0)
+  const taxRate = Number(unit.tax_rate || 0)
+  const taxAmount = Math.round(subtotal * taxRate)
+  const grandTotal = subtotal + taxAmount
+  const totalCogs = items.reduce((sum, item) => sum + (Number(item.cogs || 0) * item.qty), 0)
+
+  const orderRes = await client.query(
+    `
+      INSERT INTO orders (
+        unit_id,
+        user_id,
+        invoice_number,
+        subtotal,
+        tax_amount,
+        grand_total,
+        payment_method,
+        cashier_name,
+        payment_status,
+        kitchen_status,
+        table_number,
+        customer_name,
+        order_type,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING id
+    `,
+    [
+      unit.id,
+      cashier.id,
+      invoiceNumber,
+      subtotal,
+      taxAmount,
+      grandTotal,
+      paymentMethod,
+      cashier.username,
+      paymentStatus,
+      kitchenStatus,
+      tableNumber,
+      customerName,
+      orderType,
+      createdAt,
+    ],
+  )
+
+  const orderId = orderRes.rows[0].id
+
+  for (const item of items) {
+    const lineTotal = item.price * item.qty
+    await client.query(
+      `
+        INSERT INTO orders_items (order_id, product_id, name, price, qty, total_price, variants, note)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `,
+      [orderId, item.id, item.name, item.price, item.qty, lineTotal, '{}', null],
+    )
+  }
+
+  if (paymentStatus === 'PAID') {
+    await createJournal(client, {
+      unitId: unit.id,
+      orderId,
+      unitType: unit.type,
+      paymentMethod,
+      invoiceNumber,
+      subtotal,
+      taxAmount,
+      grandTotal,
+      totalCogs,
+      createdAt,
+    })
+  }
+
+  return { orderId, subtotal, taxAmount, grandTotal }
+}
+
+async function createPettyCash(client, { unit, manager, amount, sourceAccount, description, createdAt, sequence }) {
+  const invoiceNumber = `${DEMO_PREFIX}ADMIN-${unit.type}-${ymd(createdAt)}-${String(sequence).padStart(3, '0')}`
+  const sentinelDescription = `PETTY_CASH_SENTINEL - [DEMO] ${description}`
+  const paymentMethod = sourceAccount === '1101' ? 'CASH' : 'CARD'
+
+  const orderRes = await client.query(
+    `
+      INSERT INTO orders (
+        unit_id,
+        user_id,
+        invoice_number,
+        description,
+        subtotal,
+        tax_amount,
+        grand_total,
+        payment_method,
+        cashier_name,
+        payment_status,
+        kitchen_status,
+        table_number,
+        customer_name,
+        order_type,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, 0, $5, $6, $7, 'PAID', 'COMPLETED', '', '', 'Take Away', $8)
+      RETURNING id
+    `,
+    [unit.id, manager.id, invoiceNumber, sentinelDescription, amount, paymentMethod, manager.username, createdAt],
+  )
+
+  const sentinelOrderId = orderRes.rows[0].id
+
+  const journalRes = await client.query(
+    `
+      INSERT INTO journal_entries (unit_id, order_id, description, created_at)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
+    `,
+    [unit.id, sentinelOrderId, `[DEMO] Pengeluaran Kas Kecil: ${description}`, createdAt],
+  )
+
+  const journalEntryId = journalRes.rows[0].id
+
+  await client.query(
+    `
+      INSERT INTO journal_lines (journal_entry_id, account_code, debit, kredit)
+      VALUES ($1, '5201', $2, 0), ($1, $3, 0, $2)
+    `,
+    [journalEntryId, amount, sourceAccount],
+  )
+
+  await client.query(
+    `
+      INSERT INTO petty_cash_entries (
+        unit_id,
+        user_id,
+        source_account,
+        amount,
+        description,
+        receipt_proof,
+        idempotency_key,
+        sentinel_order_id,
+        journal_entry_id,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9)
+    `,
+    [
+      unit.id,
+      manager.id,
+      sourceAccount,
+      amount,
+      `[DEMO] ${description}`,
+      `demo-seed-${unit.type.toLowerCase()}-${sequence}`,
+      sentinelOrderId,
+      journalEntryId,
+      createdAt,
+    ],
+  )
+}
+
+function sequencePad(num, size = 4) {
+  return String(num).padStart(size, '0')
+}
+
+function createHistoricalOrderSpecs({ unit, cashier, totalDays, startSequence }) {
+  const specs = []
+  let sequence = startSequence
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    const createdAtA = daysAgo(day, 9 + (day % 3), 10)
+    const createdAtB = daysAgo(day, 13 + (day % 4), 35)
+
+    specs.push({
+      unit,
+      cashier,
+      orderType: unit.type === 'RESTO' ? 'Dine in' : day % 2 === 0 ? 'Dine in' : 'Take Away',
+      paymentMethod: day % 3 === 0 ? 'QRIS' : day % 5 === 0 ? 'CARD' : 'CASH',
+      paymentStatus: 'PAID',
+      kitchenStatus: 'COMPLETED',
+      tableNumber: unit.type === 'RESTO' ? FLOOR_TABLE_NUMBERS[(day + 1) % FLOOR_TABLE_NUMBERS.length] : '',
+      customerName: `${unit.type} Guest ${sequencePad(day, 2)}`,
+      createdAt: createdAtA,
+      productIndex: day,
+      invoiceNumber: `${DEMO_PREFIX}${unit.type}-HIST-${ymd(createdAtA)}-${sequencePad(sequence)}`,
+    })
+    sequence += 1
+
+    specs.push({
+      unit,
+      cashier,
+      orderType: unit.type === 'RESTO' ? 'Dine in' : 'Take Away',
+      paymentMethod: 'PENDING',
+      paymentStatus: 'UNPAID',
+      kitchenStatus: day % 2 === 0 ? 'PREPARING' : 'NEW',
+      tableNumber: unit.type === 'RESTO' ? FLOOR_TABLE_NUMBERS[(day + 5) % FLOOR_TABLE_NUMBERS.length] : '',
+      customerName: `${unit.type} Open ${sequencePad(day, 2)}`,
+      createdAt: createdAtB,
+      productIndex: day + 2,
+      invoiceNumber: `${DEMO_PREFIX}${unit.type}-OPEN-${ymd(createdAtB)}-${sequencePad(sequence)}`,
+    })
+    sequence += 1
+  }
+
+  return { specs, nextSequence: sequence }
+}
+
+function createFloorPlanLiveSpecs(unit, cashier, startSequence) {
+  const liveTables = ['1', '3', '5', '6', '8', '10', '11']
+
+  return liveTables.map((tableNo, idx) => {
+    const createdAt = daysAgo(0, 11 + (idx % 4), 5 + idx)
+    const seq = startSequence + idx
+    return {
+      unit,
+      cashier,
+      orderType: 'Dine in',
+      paymentMethod: 'PENDING',
+      paymentStatus: 'UNPAID',
+      kitchenStatus: idx % 3 === 0 ? 'NEW' : idx % 3 === 1 ? 'PREPARING' : 'READY',
+      tableNumber: tableNo,
+      customerName: `Live Table ${tableNo}`,
+      createdAt,
+      productIndex: idx + 1,
+      invoiceNumber: `${DEMO_PREFIX}${unit.type}-LIVE-${ymd(createdAt)}-${sequencePad(seq)}`,
+    }
+  })
+}
+
+function createCafeRushSpecs(unit, cashier, startSequence) {
+  const rushWindows = [
+    { hour: 7, minute: 45, label: 'MORNING' },
+    { hour: 12, minute: 20, label: 'LUNCH' },
+    { hour: 16, minute: 50, label: 'AFTERNOON' },
+    { hour: 19, minute: 15, label: 'EVENING' },
+  ]
+
+  const specs = []
+  let sequence = startSequence
+
+  for (let day = 0; day <= 6; day += 1) {
+    for (let i = 0; i < rushWindows.length; i += 1) {
+      const w = rushWindows[i]
+      const createdAt = daysAgo(day, w.hour, w.minute)
+      const isOpenOrder = day === 0 && (w.label === 'LUNCH' || w.label === 'EVENING')
+
+      specs.push({
+        unit,
+        cashier,
+        orderType: i % 2 === 0 ? 'Take Away' : 'Dine in',
+        paymentMethod: isOpenOrder ? 'PENDING' : i % 3 === 0 ? 'QRIS' : i % 4 === 0 ? 'CARD' : 'CASH',
+        paymentStatus: isOpenOrder ? 'UNPAID' : 'PAID',
+        kitchenStatus: isOpenOrder ? (i % 2 === 0 ? 'NEW' : 'PREPARING') : 'COMPLETED',
+        tableNumber: i % 2 === 0 ? '' : `C-${sequencePad((day + i + 1) % 10 || 10, 2)}`,
+        customerName: `Cafe ${w.label} ${sequencePad(day + 1, 2)}`,
+        createdAt,
+        productIndex: day + i + 3,
+        invoiceNumber: `${DEMO_PREFIX}CAFE-RUSH-${ymd(createdAt)}-${sequencePad(sequence)}`,
+      })
+
+      sequence += 1
+    }
+  }
+
+  return { specs, nextSequence: sequence }
+}
+
+async function main() {
+  const configBase = {
+    user: env('DB_USER', 'postgres'),
+    host: env('DB_HOST', 'localhost'),
+    port: parseInt(env('DB_PORT', '5432'), 10),
+  }
+
+  let password = process.env.DB_PASSWORD
+  if (password === undefined) {
+    password = await ask(
+      `DB password for ${configBase.user}@${configBase.host} (kosongkan jika tidak pakai): `,
+    )
+  }
+
+  const finalPassword = String(password ?? '')
+  const dbCandidates = [process.env.DB_NAME, 'genio_db', 'genio_syariah_hotel'].filter(Boolean)
+
+  let client = null
+  let selectedDb = ''
+  let lastConnectError = null
+
+  for (const dbName of dbCandidates) {
+    try {
+      const c = new Client({
+        ...configBase,
+        database: dbName,
+        password: finalPassword,
+      })
+      await c.connect()
+      client = c
+      selectedDb = dbName
+      break
+    } catch (err) {
+      lastConnectError = err
+    }
+  }
+
+  if (!client) {
+    throw lastConnectError || new Error('Gagal koneksi ke database')
+  }
+
+  try {
+    console.log(`Connected to database: ${selectedDb}`)
+    await client.query('BEGIN')
+
+    const tableCheck = await client.query(`
+      SELECT
+        to_regclass('units') AS units,
+        to_regclass('users') AS users,
+        to_regclass('products') AS products,
+        to_regclass('orders') AS orders
+    `)
+
+    const checks = tableCheck.rows[0]
+    if (!checks.units || !checks.users || !checks.products || !checks.orders) {
+      throw new Error('Tabel utama belum siap. Jalankan aplikasi sekali agar init DB berjalan.')
+    }
+
+    await client.query(`DELETE FROM cancel_requests WHERE reason LIKE '${DEMO_TAG}%'`)
+    await client.query(`DELETE FROM petty_cash_entries WHERE description LIKE '${DEMO_TAG}%'`)
+    await client.query(`DELETE FROM journal_lines WHERE journal_entry_id IN (
+      SELECT id FROM journal_entries WHERE description LIKE '${DEMO_TAG}%'
+    )`)
+    await client.query(`DELETE FROM journal_entries WHERE description LIKE '${DEMO_TAG}%'`)
+    await client.query(`DELETE FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%'`)
+
+    const unitRes = await client.query(
+      `SELECT id, type, tax_rate FROM units WHERE type IN ('CAFE', 'RESTO') ORDER BY id`,
+    )
+
+    if (unitRes.rows.length < 2) {
+      throw new Error('Unit CAFE/RESTO belum tersedia di database.')
+    }
+
+    const userRes = await client.query(
+      `
+        SELECT u.id, u.username, u.role, u.unit_id, un.type AS unit_type
+        FROM users u
+        JOIN units un ON un.id = u.unit_id
+      `,
+    )
+
+    const productRes = await client.query(
+      `SELECT id, unit_id, name, price, cogs FROM products WHERE is_active = 1 ORDER BY id`,
+    )
+
+    const units = {}
+    for (const row of unitRes.rows) {
+      units[row.type] = {
+        id: row.id,
+        type: row.type,
+        tax_rate: Number(row.tax_rate || 0),
+        products: productRes.rows.filter((p) => Number(p.unit_id) === Number(row.id)),
+      }
+    }
+
+    for (const unitType of ['CAFE', 'RESTO']) {
+      if (!units[unitType] || units[unitType].products.length === 0) {
+        throw new Error(`Produk untuk unit ${unitType} tidak ditemukan.`)
+      }
+    }
+
+    const cafeCashier = userRes.rows.find((u) => u.unit_type === 'CAFE' && u.role === 'CASHIER')
+    const cafeManager = userRes.rows.find((u) => u.unit_type === 'CAFE' && u.role === 'MANAGER')
+    const restoCashier = userRes.rows.find((u) => u.unit_type === 'RESTO' && u.role === 'CASHIER')
+    const restoManager = userRes.rows.find((u) => u.unit_type === 'RESTO' && u.role === 'MANAGER')
+
+    if (!cafeCashier || !cafeManager || !restoCashier || !restoManager) {
+      throw new Error('User cashier/manager belum lengkap untuk CAFE/RESTO.')
+    }
+
+    let sequence = 1
+
+    const demoOrders = [
+      {
+        unit: units.CAFE,
+        cashier: cafeCashier,
+        orderType: 'Take Away',
+        paymentMethod: 'CASH',
+        paymentStatus: 'PAID',
+        kitchenStatus: 'COMPLETED',
+        tableNumber: '',
+        customerName: 'Andi',
+        createdAt: daysAgo(0, 9, 20),
+        productIndex: 0,
+        invoiceNumber: `${DEMO_PREFIX}CAFE-CORE-${ymd(daysAgo(0, 9, 20))}-${sequencePad(sequence++)}`,
+      },
+      {
+        unit: units.CAFE,
+        cashier: cafeCashier,
+        orderType: 'Dine in',
+        paymentMethod: 'QRIS',
+        paymentStatus: 'PAID',
+        kitchenStatus: 'READY',
+        tableNumber: 'C-03',
+        customerName: 'Mita',
+        createdAt: daysAgo(1, 14, 10),
+        productIndex: 2,
+        invoiceNumber: `${DEMO_PREFIX}CAFE-CORE-${ymd(daysAgo(1, 14, 10))}-${sequencePad(sequence++)}`,
+      },
+      {
+        unit: units.CAFE,
+        cashier: cafeCashier,
+        orderType: 'Take Away',
+        paymentMethod: 'PENDING',
+        paymentStatus: 'UNPAID',
+        kitchenStatus: 'NEW',
+        tableNumber: '',
+        customerName: 'Rani',
+        createdAt: daysAgo(2, 16, 45),
+        productIndex: 1,
+        invoiceNumber: `${DEMO_PREFIX}CAFE-CORE-${ymd(daysAgo(2, 16, 45))}-${sequencePad(sequence++)}`,
+      },
+      {
+        unit: units.RESTO,
+        cashier: restoCashier,
+        orderType: 'Dine in',
+        paymentMethod: 'PENDING',
+        paymentStatus: 'UNPAID',
+        kitchenStatus: 'NEW',
+        tableNumber: '01',
+        customerName: 'Keluarga Putra',
+        createdAt: daysAgo(0, 12, 5),
+        productIndex: 0,
+        invoiceNumber: `${DEMO_PREFIX}RESTO-CORE-${ymd(daysAgo(0, 12, 5))}-${sequencePad(sequence++)}`,
+      },
+      {
+        unit: units.RESTO,
+        cashier: restoCashier,
+        orderType: 'Dine in',
+        paymentMethod: 'PENDING',
+        paymentStatus: 'UNPAID',
+        kitchenStatus: 'PREPARING',
+        tableNumber: '02',
+        customerName: 'Keluarga Bayu',
+        createdAt: daysAgo(1, 19, 15),
+        productIndex: 2,
+        invoiceNumber: `${DEMO_PREFIX}RESTO-CORE-${ymd(daysAgo(1, 19, 15))}-${sequencePad(sequence++)}`,
+      },
+      {
+        unit: units.RESTO,
+        cashier: restoCashier,
+        orderType: 'Dine in',
+        paymentMethod: 'CASH',
+        paymentStatus: 'PAID',
+        kitchenStatus: 'COMPLETED',
+        tableNumber: '05',
+        customerName: 'Tamu Hotel 301',
+        createdAt: daysAgo(3, 13, 25),
+        productIndex: 3,
+        invoiceNumber: `${DEMO_PREFIX}RESTO-CORE-${ymd(daysAgo(3, 13, 25))}-${sequencePad(sequence++)}`,
+      },
+      {
+        unit: units.RESTO,
+        cashier: restoCashier,
+        orderType: 'Dine in',
+        paymentMethod: 'CARD',
+        paymentStatus: 'PAID',
+        kitchenStatus: 'COMPLETED',
+        tableNumber: '08',
+        customerName: 'Rombongan A',
+        createdAt: daysAgo(4, 20, 0),
+        productIndex: 4,
+        invoiceNumber: `${DEMO_PREFIX}RESTO-CORE-${ymd(daysAgo(4, 20, 0))}-${sequencePad(sequence++)}`,
+      },
+    ]
+
+    const cafeHist = createHistoricalOrderSpecs({
+      unit: units.CAFE,
+      cashier: cafeCashier,
+      totalDays: 10,
+      startSequence: sequence,
+    })
+    sequence = cafeHist.nextSequence
+
+    const restoHist = createHistoricalOrderSpecs({
+      unit: units.RESTO,
+      cashier: restoCashier,
+      totalDays: 10,
+      startSequence: sequence,
+    })
+    sequence = restoHist.nextSequence
+
+    const floorPlanLive = createFloorPlanLiveSpecs(units.RESTO, restoCashier, sequence)
+    sequence += floorPlanLive.length
+
+    const cafeRush = createCafeRushSpecs(units.CAFE, cafeCashier, sequence)
+    sequence = cafeRush.nextSequence
+
+    const allOrderSpecs = [
+      ...demoOrders,
+      ...cafeHist.specs,
+      ...restoHist.specs,
+      ...floorPlanLive,
+      ...cafeRush.specs,
+    ]
+
+    const created = []
+
+    for (let i = 0; i < allOrderSpecs.length; i += 1) {
+      const spec = allOrderSpecs[i]
+      const order = await createOrder(client, {
+        ...spec,
+        invoiceNumber: spec.invoiceNumber,
+      })
+      created.push({
+        ...order,
+        unitType: spec.unit.type,
+        cashierId: spec.cashier.id,
+        paymentStatus: spec.paymentStatus,
+        tableNumber: spec.tableNumber,
+        invoiceNumber: spec.invoiceNumber,
+      })
+    }
+
+    const pendingCancelOrder = created.find(
+      (o) => o.unitType === 'RESTO' && o.paymentStatus === 'UNPAID' && o.tableNumber,
+    )
+    const approvedCancelOrder = created.find(
+      (o) => o.unitType === 'CAFE' && o.paymentStatus === 'PAID' && o.subtotal > 0,
+    )
+    const rejectedCancelOrder = created.find(
+      (o) => o.unitType === 'RESTO' && o.paymentStatus === 'PAID' && o.subtotal > 0,
+    )
+
+    if (pendingCancelOrder) {
+      await client.query(
+        `
+          INSERT INTO cancel_requests (unit_id, order_id, requested_by, reason, status, created_at)
+          VALUES ($1, $2, $3, $4, 'PENDING', $5)
+        `,
+        [units.RESTO.id, pendingCancelOrder.orderId, restoCashier.id, `${DEMO_TAG} Salah input meja`, daysAgo(0, 12, 20)],
+      )
+    }
+
+    if (approvedCancelOrder) {
+      await client.query(
+        `
+          INSERT INTO cancel_requests (unit_id, order_id, requested_by, reason, status, reviewed_by, reviewed_at, created_at)
+          VALUES ($1, $2, $3, $4, 'APPROVED', $5, $6, $7)
+        `,
+        [
+          units.CAFE.id,
+          approvedCancelOrder.orderId,
+          cafeCashier.id,
+          `${DEMO_TAG} Order duplikat`,
+          cafeManager.id,
+          daysAgo(1, 15, 30),
+          daysAgo(1, 15, 15),
+        ],
+      )
+
+      await client.query(
+        `
+          UPDATE orders
+          SET payment_status = 'CANCELLED', payment_method = 'CANCELLED'
+          WHERE id = $1
+        `,
+        [approvedCancelOrder.orderId],
+      )
+    }
+
+    if (rejectedCancelOrder) {
+      await client.query(
+        `
+          INSERT INTO cancel_requests (unit_id, order_id, requested_by, reason, status, reviewed_by, reviewed_at, created_at)
+          VALUES ($1, $2, $3, $4, 'REJECTED', $5, $6, $7)
+        `,
+        [
+          units.RESTO.id,
+          rejectedCancelOrder.orderId,
+          restoCashier.id,
+          `${DEMO_TAG} Alasan tidak valid`,
+          restoManager.id,
+          daysAgo(2, 18, 0),
+          daysAgo(2, 17, 45),
+        ],
+      )
+    }
+
+    await createPettyCash(client, {
+      unit: units.CAFE,
+      manager: cafeManager,
+      amount: 125000,
+      sourceAccount: '1101',
+      description: 'Beli tisu dan sabun area cafe',
+      createdAt: daysAgo(0, 11, 10),
+      sequence: 1,
+    })
+
+    await createPettyCash(client, {
+      unit: units.RESTO,
+      manager: restoManager,
+      amount: 180000,
+      sourceAccount: '1103',
+      description: 'Isi ulang gas portable pantry',
+      createdAt: daysAgo(2, 9, 40),
+      sequence: 2,
+    })
+
+    await createPettyCash(client, {
+      unit: units.CAFE,
+      manager: cafeManager,
+      amount: 95000,
+      sourceAccount: '1101',
+      description: 'Beli alat kebersihan bar',
+      createdAt: daysAgo(4, 10, 25),
+      sequence: 3,
+    })
+
+    await createPettyCash(client, {
+      unit: units.RESTO,
+      manager: restoManager,
+      amount: 220000,
+      sourceAccount: '1103',
+      description: 'Pembelian emergency bumbu dapur',
+      createdAt: daysAgo(5, 8, 50),
+      sequence: 4,
+    })
+
+    const countRes = await client.query(`
+      SELECT
+        (SELECT COUNT(*) FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%') AS demo_orders,
+        (SELECT COUNT(*) FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%' AND payment_status = 'PAID') AS demo_paid_orders,
+        (SELECT COUNT(*) FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%' AND payment_status = 'UNPAID') AS demo_unpaid_orders,
+        (SELECT COUNT(*) FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%' AND payment_status = 'CANCELLED') AS demo_cancelled_orders,
+        (SELECT COUNT(*) FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%' AND unit_id = ${units.CAFE.id}) AS cafe_orders,
+        (SELECT COUNT(*) FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%' AND unit_id = ${units.CAFE.id} AND payment_status = 'UNPAID') AS cafe_open_orders,
+        (SELECT COUNT(*) FROM orders WHERE invoice_number LIKE '${DEMO_PREFIX}%' AND unit_id = ${units.RESTO.id} AND payment_status = 'UNPAID' AND table_number IN (${FLOOR_TABLE_NUMBERS.map((t) => `'${t}'`).join(',')})) AS floor_plan_active_tables,
+        (SELECT COUNT(*) FROM cancel_requests WHERE reason LIKE '${DEMO_TAG}%') AS demo_cancel_requests,
+        (SELECT COUNT(*) FROM petty_cash_entries WHERE description LIKE '${DEMO_TAG}%') AS demo_petty_cash_entries,
+        (SELECT COUNT(*) FROM journal_entries WHERE description LIKE '${DEMO_TAG}%') AS demo_journal_entries
+    `)
+
+    await client.query('COMMIT')
+
+    console.log('Demo seeder selesai.')
+    console.table(countRes.rows)
+    console.log('Tip login demo: jokowi / windah / cafe_mgr / resto_mgr (password: 1234)')
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('Seeder gagal:', err.message)
+    process.exitCode = 1
+  } finally {
+    await client.end()
+  }
+}
+
+main().catch((err) => {
+  console.error('Unhandled seeder error:', err)
+  process.exit(1)
+})
