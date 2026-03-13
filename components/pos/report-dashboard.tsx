@@ -25,6 +25,13 @@ interface ReportPageProps {
 
 const getPaymentBadgeConfig = (method: string) => {
   switch (method) {
+    case 'PENDING':
+      return {
+        bg: 'bg-amber-100',
+        text: 'text-amber-700',
+        bar: 'bg-amber-400',
+        icon: Receipt,
+      }
     case 'CASH':
       return {
         bg: 'bg-emerald-100',
@@ -302,7 +309,9 @@ export function ReportDashboard({ unitId }: ReportPageProps) {
               <tbody className="border-border divide-y">
                 {transactions.map((order, index) => {
                   const itemCount = parseInt(order.item_count || '0')
-                  const paymentConfig = getPaymentBadgeConfig(order.payment_method)
+                  const paymentLabel =
+                    order.payment_status === 'UNPAID' ? 'PENDING' : order.payment_method || '-'
+                  const paymentConfig = getPaymentBadgeConfig(paymentLabel)
                   const PaymentIcon = paymentConfig.icon
                   return (
                     <tr
@@ -337,7 +346,7 @@ export function ReportDashboard({ unitId }: ReportPageProps) {
                           )}
                         >
                           <PaymentIcon className="h-3 w-3" />
-                          {order.payment_method}
+                          {paymentLabel}
                         </span>
                       </td>
                       <td className="p-4">

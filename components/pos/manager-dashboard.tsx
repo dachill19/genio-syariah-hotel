@@ -92,6 +92,8 @@ const PRESET_OPTIONS: { key: DatePreset; label: string }[] = [
 
 export const getPaymentBadgeConfig = (method: string) => {
   switch (method) {
+    case 'PENDING':
+      return { bg: 'bg-amber-100', text: 'text-amber-700', bar: 'bg-amber-400', icon: Receipt }
     case 'CASH':
       return { bg: 'bg-emerald-100', text: 'text-emerald-700', bar: 'bg-emerald-400', icon: Banknote }
     case 'QRIS':
@@ -559,9 +561,11 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
                       </tr>
                     ) : (
                       (data?.recentTransactions || []).map((tx: any) => {
-                        const PaymentIcon = getPaymentBadgeConfig(tx.payment_method || '').icon
+                        const paymentLabel =
+                          tx.payment_status === 'UNPAID' ? 'PENDING' : tx.payment_method || '-'
+                        const PaymentIcon = getPaymentBadgeConfig(paymentLabel).icon
                         const TypeIcon = getOrderTypeBadgeConfig(tx.order_type || '').icon
-                        const paymentConfig = getPaymentBadgeConfig(tx.payment_method || '')
+                        const paymentConfig = getPaymentBadgeConfig(paymentLabel)
                         const typeConfig = getOrderTypeBadgeConfig(tx.order_type || '')
 
                         return (
@@ -596,7 +600,7 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
                                 )}
                               >
                                 <PaymentIcon className="h-3 w-3" />
-                                {tx.payment_method}
+                                {paymentLabel}
                               </span>
                             </td>
                             <td className="px-5 py-3">

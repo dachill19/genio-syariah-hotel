@@ -91,7 +91,7 @@ export async function GET(req: Request) {
       FROM orders
       WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
         AND unit_id = $3
-        AND payment_status IN ('PAID', 'CANCELLED')
+        AND payment_status IN ('PAID', 'CANCELLED', 'UNPAID')
         AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
       ORDER BY created_at DESC
       LIMIT 10
