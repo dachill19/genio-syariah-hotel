@@ -558,13 +558,17 @@ export function MenuManager({ unitId }: MenuManagerProps) {
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) {
+                          setProductForm((prev) => ({
+                            ...prev,
+                            image: file,
+                          }))
+
                           const reader = new FileReader()
                           reader.onloadend = () => {
-                            setProductForm({
-                              ...productForm,
-                              image: file,
-                              imagePreview: reader.result as string,
-                            })
+                            setProductForm((prev) => ({
+                              ...prev,
+                              imagePreview: (reader.result as string) || prev.imagePreview,
+                            }))
                           }
                           reader.readAsDataURL(file)
                         }
