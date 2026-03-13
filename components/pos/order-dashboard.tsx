@@ -467,7 +467,8 @@ export function OrderDashboard({ unitId }: OrderDashboardProps) {
 
                     <div className="flex-1" />
 
-                    {order.kitchen_status !== 'COMPLETED' &&
+                    {unitId !== 1 &&
+                      order.kitchen_status !== 'COMPLETED' &&
                       order.kitchen_status !== 'CANCELED' && (
                         <Button
                           variant="ghost"

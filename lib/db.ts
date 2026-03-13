@@ -382,7 +382,7 @@ async function seedProducts(pool: Pool) {
       'Nasi Goreng Spesial',
       35000,
       12000,
-      'https://loremflickr.com/800/600/friedrice,food/all',
+      null,
       JSON.stringify([
         {
           name: 'Pedas',
@@ -400,7 +400,7 @@ async function seedProducts(pool: Pool) {
       'Ayam Bakar Madu',
       45000,
       18000,
-      'https://loremflickr.com/800/600/grilledchicken,food/all',
+      null,
       '[]',
     ])
     await pool.query(q, [
@@ -409,7 +409,7 @@ async function seedProducts(pool: Pool) {
       'Es Jeruk',
       12000,
       3000,
-      'https://loremflickr.com/800/600/orangejuice,drink/all',
+      null,
       '[]',
     ])
     await pool.query(q, [
@@ -418,7 +418,7 @@ async function seedProducts(pool: Pool) {
       'Sate Ayam',
       30000,
       12000,
-      'https://loremflickr.com/800/600/chickensatay,food/all',
+      null,
       '[]',
     ])
     await pool.query(q, [
@@ -427,7 +427,7 @@ async function seedProducts(pool: Pool) {
       'Sop Buntut',
       65000,
       25000,
-      'https://loremflickr.com/800/600/beefsoup,food/all',
+      null,
       '[]',
     ])
     await pool.query(q, [
@@ -436,7 +436,7 @@ async function seedProducts(pool: Pool) {
       'Juice Alpukat',
       18000,
       5000,
-      'https://loremflickr.com/800/600/avocadosmoothie,drink/all',
+      null,
       '[]',
     ])
     await pool.query(q, [
@@ -445,7 +445,7 @@ async function seedProducts(pool: Pool) {
       'Nasi Goreng Seafood',
       40000,
       15000,
-      'https://loremflickr.com/800/600/seafoodrice,food/all',
+      null,
       JSON.stringify([
         {
           name: 'Pedas',
@@ -463,7 +463,7 @@ async function seedProducts(pool: Pool) {
       'Mie Goreng Jawa',
       32000,
       10000,
-      'https://loremflickr.com/800/600/friednoodles,food/all',
+      null,
       JSON.stringify([
         {
           name: 'Pedas',
@@ -481,7 +481,7 @@ async function seedProducts(pool: Pool) {
       'Ayam Penyet',
       28000,
       10000,
-      'https://loremflickr.com/800/600/friedchicken,spicy/all',
+      null,
       JSON.stringify([
         {
           name: 'Sambal',
@@ -499,7 +499,7 @@ async function seedProducts(pool: Pool) {
       'Capcay Seafood',
       35000,
       13000,
-      'https://loremflickr.com/800/600/stirfryvegetables,food/all',
+      null,
       '[]',
     ])
     await pool.query(q, [
@@ -508,7 +508,7 @@ async function seedProducts(pool: Pool) {
       'Es Teh Manis',
       8000,
       2000,
-      'https://loremflickr.com/800/600/icedtea,drink/all',
+      null,
       '[]',
     ])
   }

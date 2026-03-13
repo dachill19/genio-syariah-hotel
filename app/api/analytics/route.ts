@@ -15,6 +15,7 @@ export async function GET(req: Request) {
 
   try {
     const pool = await getDb()
+    const isSingleDay = startDate === endDate
 
     const summaryQuery = `
       SELECT
@@ -34,18 +35,34 @@ export async function GET(req: Request) {
         AND COALESCE(o.description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
     `
 
-    const dailySalesQuery = `
-      SELECT DATE(created_at AT TIME ZONE '${TZ}') as date,
-             COALESCE(SUM(grand_total), 0) as revenue,
-             COUNT(*) as orders
-      FROM orders
-      WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
-        AND unit_id = $3
-        AND payment_status = 'PAID'
-        AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
-      GROUP BY DATE(created_at AT TIME ZONE '${TZ}')
-      ORDER BY date ASC
-    `
+    const dailySalesQuery = isSingleDay
+      ? `
+          SELECT
+            DATE(created_at AT TIME ZONE '${TZ}') as date,
+            EXTRACT(HOUR FROM created_at AT TIME ZONE '${TZ}')::int as hour,
+            TO_CHAR(DATE_TRUNC('hour', created_at AT TIME ZONE '${TZ}'), 'HH24:00') as label,
+            COALESCE(SUM(grand_total), 0) as revenue,
+            COUNT(*) as orders
+          FROM orders
+          WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
+            AND unit_id = $3
+            AND payment_status = 'PAID'
+            AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
+          GROUP BY DATE(created_at AT TIME ZONE '${TZ}'), EXTRACT(HOUR FROM created_at AT TIME ZONE '${TZ}'), DATE_TRUNC('hour', created_at AT TIME ZONE '${TZ}')
+          ORDER BY hour ASC
+        `
+      : `
+          SELECT DATE(created_at AT TIME ZONE '${TZ}') as date,
+                 COALESCE(SUM(grand_total), 0) as revenue,
+                 COUNT(*) as orders
+          FROM orders
+          WHERE DATE(created_at AT TIME ZONE '${TZ}') BETWEEN $1 AND $2
+            AND unit_id = $3
+            AND payment_status = 'PAID'
+            AND COALESCE(description, '') NOT LIKE 'PETTY_CASH_SENTINEL%'
+          GROUP BY DATE(created_at AT TIME ZONE '${TZ}')
+          ORDER BY date ASC
+        `
 
     const topProductsQuery = `
       SELECT oi.name,
@@ -118,6 +135,7 @@ export async function GET(req: Request) {
       },
       dailySales: dailyRes.rows.map((r: any) => ({
         date: r.date,
+        label: r.label || null,
         revenue: parseInt(r.revenue),
         orders: parseInt(r.orders),
       })),

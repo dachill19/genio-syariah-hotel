@@ -852,8 +852,13 @@ function drawChart(canvas: HTMLCanvasElement, dailySales: any[]) {
     ctx.fillStyle = '#6b7280'
     ctx.font = '10px Inter, sans-serif'
     ctx.textAlign = 'center'
-    const date = new Date(d.date)
-    const label = `${date.getDate()}/${date.getMonth() + 1}`
+    const label =
+      typeof d.label === 'string' && d.label.trim().length > 0
+        ? d.label
+        : (() => {
+            const date = new Date(d.date)
+            return `${date.getDate()}/${date.getMonth() + 1}`
+          })()
     ctx.fillText(label, x + barW / 2, H - padB + 16)
   })
 }

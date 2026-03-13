@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed:demo": "node scripts/seed-demo.js",
-    "cleanup:demo": "node scripts/cleanup-demo.js"
+    "cleanup:demo": "node scripts/cleanup-demo.js",
+    "images:resto": "node scripts/update-resto-product-images.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
