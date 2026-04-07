@@ -384,7 +384,7 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
                   {(data?.topProducts || []).length === 0 ? (
                     <p className="text-muted-foreground py-8 text-center text-sm">No data</p>
                   ) : (
-                    data.topProducts.slice(0, 8).map((p: any, i: number) => (
+                    data.topProducts.slice(0, 5).map((p: any, i: number) => (
                       <div key={p.name} className="flex items-center gap-3">
                         <span
                           className={cn(
