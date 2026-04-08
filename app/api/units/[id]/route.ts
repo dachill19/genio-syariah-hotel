@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authCheck = requireAuth(req, [
+    'SUPER_ADMIN',
+    'FINANCE_MANAGER',
+    'AUDITOR',
+    'MANAGER',
+    'CASHIER',
+    'DEPARTMENT_HEAD',
+  ])
+  if (!authCheck.ok) return authCheck.response
+
   try {
     const { id } = await params
     const pool = await getDb()
@@ -13,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     return NextResponse.json(res.rows[0])
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
   }
 }

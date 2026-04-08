@@ -3,16 +3,20 @@ import { getDb } from '@/lib/db'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import { requireAuth } from '@/lib/auth'
 
 const UPLOAD_DIR = join(process.cwd(), 'public', 'products')
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authCheck = requireAuth(req, ['SUPER_ADMIN', 'FINANCE_MANAGER', 'MANAGER'])
+  if (!authCheck.ok) return authCheck.response
+
   try {
     const { id } = await params
     
     const contentType = req.headers.get('content-type') || ''
-    let updates: string[] = []
-    let values: any[] = []
+    const updates: string[] = []
+    const values: unknown[] = []
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData()
@@ -71,13 +75,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     return NextResponse.json(res.rows[0])
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Update error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authCheck = requireAuth(_req, ['SUPER_ADMIN', 'FINANCE_MANAGER', 'MANAGER'])
+  if (!authCheck.ok) return authCheck.response
+
   try {
     const { id } = await params
     const pool = await getDb()
@@ -92,7 +99,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     }
 
     return NextResponse.json({ message: 'Product deleted' })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
   }
 }

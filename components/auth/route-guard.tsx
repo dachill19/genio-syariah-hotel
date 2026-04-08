@@ -1,56 +1,66 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
+import { getHomeRoute, isFinanceRole } from '@/lib/access-control'
 
 export function RouteGuard({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuthStore()
   const router = useRouter()
   const pathname = usePathname()
-  const [authorized, setAuthorized] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
 
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (!isMounted) return
-
+  const getRedirectPath = () => {
     if (!isAuthenticated || !user) {
-      router.push('/')
-      return
+      return '/'
     }
 
     const isCafeUrl = pathname.includes('/pos/cafe')
     const isRestoUrl = pathname.includes('/pos/restaurant')
     const isManagerUrl = pathname.includes('/manager')
+    const isFinanceUrl = pathname.startsWith('/finance')
 
-    // Unit Check
+    if (isFinanceRole(user.role, user.unit_id ?? null) && !isFinanceUrl) {
+      return '/finance'
+    }
+
+    if (!isFinanceRole(user.role, user.unit_id ?? null) && isFinanceUrl) {
+      return getHomeRoute({ role: user.role, unitId: user.unit_id ?? null })
+    }
+
     if (user.unit_id === 1 && isRestoUrl) {
-      router.replace(user.role === 'MANAGER' ? '/pos/cafe/manager' : '/pos/cafe')
-      return
+      return user.role === 'MANAGER' ? '/pos/cafe/manager' : '/pos/cafe'
     }
+
     if (user.unit_id === 2 && isCafeUrl) {
-      router.replace(user.role === 'MANAGER' ? '/pos/restaurant/manager' : '/pos/restaurant')
-      return
+      return user.role === 'MANAGER' ? '/pos/restaurant/manager' : '/pos/restaurant'
     }
 
-    // Role Check
     if (user.role === 'CASHIER' && isManagerUrl) {
-      router.replace(user.unit_id === 1 ? '/pos/cafe' : '/pos/restaurant')
-      return
+      return user.unit_id === 1 ? '/pos/cafe' : '/pos/restaurant'
     }
+
     if (user.role === 'MANAGER' && !isManagerUrl) {
-       router.replace(user.unit_id === 1 ? '/pos/cafe/manager' : '/pos/restaurant/manager')
-       return
+      return user.unit_id === 1 ? '/pos/cafe/manager' : '/pos/restaurant/manager'
     }
 
-    setAuthorized(true)
-  }, [isAuthenticated, user, pathname, router, isMounted])
+    return null
+  }
 
-  if (!isMounted || !authorized) {
+  const redirectPath = getRedirectPath()
+
+  useEffect(() => {
+    if (redirectPath && redirectPath !== pathname) {
+      if (redirectPath === '/') {
+        router.push(redirectPath)
+        return
+      }
+
+      router.replace(redirectPath)
+    }
+  }, [pathname, redirectPath, router])
+
+  if (redirectPath) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>

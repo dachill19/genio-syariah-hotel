@@ -15,8 +15,15 @@ import {
   History as HistoryIcon,
   ShieldAlert,
   PiggyBank,
+  Landmark,
+  BookOpen,
+  Wallet,
+  ScrollText,
+  BedDouble,
+  Moon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isFinanceRole } from '@/lib/access-control'
 import { useAuthStore } from '@/stores/auth-store'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import Image from 'next/image'
@@ -47,10 +54,54 @@ export function Sidebar() {
 
   const isCashier = user?.role === 'CASHIER'
   const isManager = user?.role === 'MANAGER'
+  const isFinanceUser = user ? isFinanceRole(user.role, user.unit_id ?? null) : false
   const isCafe = user?.unit_id === 1
   const isResto = user?.unit_id === 2
 
   const links = [
+    {
+      href: '/finance',
+      icon: Landmark,
+      label: 'Finance Dashboard',
+      hidden: !isFinanceUser,
+    },
+    {
+      href: '/finance/coa',
+      icon: BookOpen,
+      label: 'Chart of Accounts',
+      hidden: !isFinanceUser,
+    },
+    {
+      href: '/finance/general-ledger',
+      icon: ScrollText,
+      label: 'General Ledger',
+      hidden: !isFinanceUser,
+    },
+    {
+      href: '/finance/cash-bank',
+      icon: Wallet,
+      label: 'Cash & Bank',
+      hidden: !isFinanceUser,
+    },
+    {
+      href: '/finance/folios',
+      icon: BedDouble,
+      label: 'Guest Folio',
+      hidden: !isFinanceUser,
+    },
+    {
+      href: '/finance/night-audit',
+      icon: Moon,
+      label: 'Night Audit',
+      hidden: !isFinanceUser,
+    },
+    {
+      href: '/finance/reports',
+      icon: FileText,
+      label: 'Finance Reports',
+      hidden: !isFinanceUser,
+    },
+
     // CASHIER — Cafe
     {
       href: '/pos/cafe',

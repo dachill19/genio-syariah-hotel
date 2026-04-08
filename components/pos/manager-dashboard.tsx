@@ -169,24 +169,36 @@ export function ManagerDashboard({ unitId }: ManagerDashboardProps) {
   }
 
   useEffect(() => {
-    setLoading(true)
-    fetch(`/api/analytics?startDate=${startDate}&endDate=${endDate}&unitId=${unitId}`)
-      .then((res) => res.json())
-      .then((d) => setData(d))
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    const timer = window.setTimeout(() => {
+      setLoading(true)
+      fetch(`/api/analytics?startDate=${startDate}&endDate=${endDate}&unitId=${unitId}`)
+        .then((res) => res.json())
+        .then((d) => setData(d))
+        .catch(console.error)
+        .finally(() => setLoading(false))
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [startDate, endDate, unitId])
 
   useEffect(() => {
-    setPettyCashLoading(true)
-    fetch(`/api/petty-cash?unitId=${unitId}`)
-      .then((res) => res.json())
-      .then((rows) => setPettyCashHistory(Array.isArray(rows) ? rows : []))
-      .catch((error) => {
-        console.error('Failed to fetch petty cash history', error)
-        setPettyCashHistory([])
-      })
-      .finally(() => setPettyCashLoading(false))
+    const timer = window.setTimeout(() => {
+      setPettyCashLoading(true)
+      fetch(`/api/petty-cash?unitId=${unitId}`)
+        .then((res) => res.json())
+        .then((rows) => setPettyCashHistory(Array.isArray(rows) ? rows : []))
+        .catch((error) => {
+          console.error('Failed to fetch petty cash history', error)
+          setPettyCashHistory([])
+        })
+        .finally(() => setPettyCashLoading(false))
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [unitId])
 
   useEffect(() => {

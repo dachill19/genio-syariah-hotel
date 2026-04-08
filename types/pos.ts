@@ -1,3 +1,5 @@
+import type { AppRole } from '@/lib/access-control'
+
 export interface VariantOption {
   name: string
   price: number
@@ -19,7 +21,7 @@ export interface User {
   id: string
   unit_id?: number
   username: string
-  role: 'CASHIER' | 'MANAGER'
+  role: AppRole
 }
 
 export interface Product {

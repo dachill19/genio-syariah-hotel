@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Lock, User as UserIcon } from 'lucide-react'
 import Image from 'next/image'
+import { getHomeRoute, isFinanceRole } from '@/lib/access-control'
 
 export default function LoginPage() {
   const { login, isAuthenticated, user } = useAuthStore()
@@ -19,15 +20,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      const isManager = user.role === 'MANAGER'
-
-      if (user.unit_id === 1) {
-        router.push(isManager ? '/pos/cafe/manager' : '/pos/cafe')
-      } else if (user.unit_id === 2) {
-        router.push(isManager ? '/pos/restaurant/manager' : '/pos/restaurant')
-      } else {
-        router.push('/pos/cafe')
+      if (isFinanceRole(user.role, user.unit_id ?? null)) {
+        router.push('/finance')
+        return
       }
+
+      router.push(getHomeRoute({ role: user.role, unitId: user.unit_id ?? null }))
     }
   }, [isAuthenticated, user, router])
 
@@ -38,8 +36,8 @@ export default function LoginPage() {
 
     try {
       await login(username, password)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setLoading(false)
     }

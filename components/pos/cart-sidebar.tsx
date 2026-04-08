@@ -63,7 +63,13 @@ export function CartSidebar({
 
   useEffect(() => {
     if (showValidation) {
-      setIsEditing(true)
+      const timer = window.setTimeout(() => {
+        setIsEditing(true)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(timer)
+      }
     }
   }, [showValidation])
 

@@ -1,7 +1,20 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { canAccessUnit, requireAuth } from '@/lib/auth'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authCheck = requireAuth(req, [
+    'SUPER_ADMIN',
+    'FINANCE_MANAGER',
+    'AUDITOR',
+    'MANAGER',
+    'CASHIER',
+    'DEPARTMENT_HEAD',
+  ])
+  if (!authCheck.ok) return authCheck.response
+
+  const auth = authCheck.auth
+
   try {
     const { id } = await params
     const pool = await getDb()
@@ -43,13 +56,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
+    if (!canAccessUnit(auth, Number(res.rows[0].unit_id))) {
+      return NextResponse.json({ error: 'Forbidden for this unit' }, { status: 403 })
+    }
+
     return NextResponse.json(res.rows[0])
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authCheck = requireAuth(req, ['SUPER_ADMIN', 'FINANCE_MANAGER', 'MANAGER'])
+  if (!authCheck.ok) return authCheck.response
+
+  const auth = authCheck.auth
+
   try {
     const { id } = await params
     const body = await req.json()
@@ -62,6 +84,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     try {
       await client.query('BEGIN')
+
+      const orderRes = await client.query('SELECT unit_id FROM orders WHERE id = $1 LIMIT 1', [orderId])
+      const order = orderRes.rows[0]
+      if (!order) {
+        await client.query('ROLLBACK')
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+      }
+      if (!canAccessUnit(auth, Number(order.unit_id))) {
+        await client.query('ROLLBACK')
+        return NextResponse.json({ error: 'Forbidden for this unit' }, { status: 403 })
+      }
 
       await client.query('DELETE FROM orders_items WHERE order_id = $1', [orderId])
 
@@ -97,7 +130,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     } finally {
       client.release()
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 400 })
   }
 }

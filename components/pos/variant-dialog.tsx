@@ -36,7 +36,13 @@ export function VariantDialog({ product, isOpen, onClose, onConfirm }: VariantDi
           initialSelections[group.name] = group.options[0]
         }
       })
-      setSelections(initialSelections)
+      const timer = window.setTimeout(() => {
+        setSelections(initialSelections)
+      }, 0)
+
+      return () => {
+        window.clearTimeout(timer)
+      }
     }
   }, [isOpen, product])
 

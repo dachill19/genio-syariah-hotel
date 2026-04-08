@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { canAccessUnit, requireAuth } from '@/lib/auth'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authCheck = requireAuth(req, ['SUPER_ADMIN', 'FINANCE_MANAGER', 'MANAGER', 'CASHIER'])
+  if (!authCheck.ok) return authCheck.response
+
+  const auth = authCheck.auth
+
   try {
     const { id } = await params
     const body = await req.json()
 
     const pool = await getDb()
 
-    let paramId: string = id
+    const paramId: string = id
     const isInvoice = id.startsWith('INV-')
     const idColumn = isInvoice ? 'invoice_number' : 'id'
     const client = await pool.connect()
@@ -27,9 +33,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
 
       const existingOrder = existingOrderRes.rows[0]
+      if (!canAccessUnit(auth, Number(existingOrder.unit_id))) {
+        await client.query('ROLLBACK')
+        return NextResponse.json({ error: 'Forbidden for this unit' }, { status: 403 })
+      }
 
       const updates: string[] = []
-      const values: any[] = []
+      const values: unknown[] = []
 
       if (body.payment_status) {
         const validPayment = ['UNPAID', 'PAID', 'REFUNDED', 'VOID']
@@ -142,8 +152,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     } finally {
       client.release()
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,15 +1,21 @@
 import { getDb } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
+import { writeAuditLog } from '@/lib/audit-log'
 
 // PATCH /api/cancel-requests/[id]
 // Body: { action: 'APPROVE' | 'REJECT', reviewed_by: string }
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const authCheck = requireAuth(req, ['SUPER_ADMIN', 'FINANCE_MANAGER', 'MANAGER'])
+  if (!authCheck.ok) return authCheck.response
+
+  const auth = authCheck.auth
   const { id } = await params
   const body = await req.json()
-  const { action, reviewed_by } = body
+  const { action } = body
 
-  if (!action || !reviewed_by) {
-    return NextResponse.json({ error: 'action and reviewed_by are required' }, { status: 400 })
+  if (!action) {
+    return NextResponse.json({ error: 'action is required' }, { status: 400 })
   }
   if (action !== 'APPROVE' && action !== 'REJECT') {
     return NextResponse.json({ error: 'action must be APPROVE or REJECT' }, { status: 400 })
@@ -33,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   await db.query(
     `UPDATE cancel_requests SET status = $1, reviewed_by = $2, reviewed_at = NOW() WHERE id = $3`,
-    [newStatus, reviewed_by, id],
+    [newStatus, auth.userId, id],
   )
 
   // If approved, cancel the order
@@ -46,6 +52,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       [cancelRequest.order_id],
     )
   }
+
+  await writeAuditLog(db, {
+    userId: auth.userId,
+    action: action === 'APPROVE' ? 'CANCEL_REQUEST_APPROVE' : 'CANCEL_REQUEST_REJECT',
+    resource: 'cancel_requests',
+    resourceId: id,
+    metadata: { order_id: cancelRequest.order_id },
+  })
 
   return NextResponse.json({ success: true, status: newStatus })
 }

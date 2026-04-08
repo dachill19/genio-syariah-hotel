@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import bcrypt from 'bcryptjs'
+import { issueAuthToken, setAuthCookie } from '@/lib/auth'
+import { AppRole } from '@/lib/access-control'
 
 export async function POST(req: Request) {
   try {
-    const { username, password } = await req.json()
+    const body = await req.json()
+    const username = String(body.username || '').trim()
+    const password = String(body.password || '')
+
+    if (!username || !password) {
+      return NextResponse.json({ error: 'username and password are required' }, { status: 400 })
+    }
+
     const pool = await getDb()
 
     const res = await pool.query('SELECT * FROM users WHERE username = $1', [username])
@@ -19,10 +28,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
     }
 
+    const token = issueAuthToken({
+      id: user.id,
+      username: user.username,
+      role: user.role as AppRole,
+      unit_id: user.unit_id ?? null,
+    })
+
     const { password: _, ...safeUser } = user
-    return NextResponse.json(safeUser)
-  } catch (error: any) {
+    const response = NextResponse.json(safeUser)
+    setAuthCookie(response, token)
+
+    return response
+  } catch (error: unknown) {
     console.error('Login error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
   }
 }

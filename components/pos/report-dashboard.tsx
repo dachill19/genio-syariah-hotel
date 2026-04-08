@@ -23,6 +23,14 @@ interface ReportPageProps {
   unitId: number
 }
 
+type ReportSummary = {
+  total_sales: number
+  total_transactions: number
+  total_items_sold: number
+}
+
+type ReportTransaction = Order
+
 const getPaymentBadgeConfig = (method: string) => {
   switch (method) {
     case 'PENDING':
@@ -77,8 +85,8 @@ const getPaymentStatusStyle = (status: string) => {
 
 export function ReportDashboard({ unitId }: ReportPageProps) {
   const { user } = useAuthStore()
-  const [summary, setSummary] = useState<any>(null)
-  const [transactions, setTransactions] = useState<any[]>([])
+  const [summary, setSummary] = useState<ReportSummary | null>(null)
+  const [transactions, setTransactions] = useState<ReportTransaction[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
@@ -91,15 +99,21 @@ export function ReportDashboard({ unitId }: ReportPageProps) {
   useEffect(() => {
     if (!user?.username) return
 
-    setLoading(true)
-    fetch(`/api/reports?unitId=${unitId}&cashierName=${encodeURIComponent(user.username)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setSummary(data.summary)
-        setTransactions(data.transactions)
-      })
-      .catch((err) => console.error('Failed to fetch reports', err))
-      .finally(() => setLoading(false))
+    const timer = window.setTimeout(() => {
+      setLoading(true)
+      fetch(`/api/reports?unitId=${unitId}&cashierName=${encodeURIComponent(user.username)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setSummary(data.summary)
+          setTransactions(data.transactions)
+        })
+        .catch((err) => console.error('Failed to fetch reports', err))
+        .finally(() => setLoading(false))
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [unitId, user?.username])
 
   const totalSales = summary?.total_sales || 0
@@ -107,7 +121,7 @@ export function ReportDashboard({ unitId }: ReportPageProps) {
   const totalItemsSold = summary?.total_items_sold || 0
 
   const paymentBreakdown = transactions.reduce(
-    (acc: Record<string, { count: number; total: number }>, order: any) => {
+    (acc: Record<string, { count: number; total: number }>, order: ReportTransaction) => {
       const method = order.payment_method || 'OTHER'
       if (!acc[method]) acc[method] = { count: 0, total: 0 }
       acc[method].count += 1
